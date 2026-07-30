@@ -14,6 +14,16 @@ const OMDB_API_KEY = process.env.OMDB_API_KEY;
 app.use(cors());
 app.use(express.json());
 
+// Ruta raíz para comprobación de UptimeRobot y navegadores
+app.get('/', (req, res) => {
+  res.status(200).send('🚀 CineLab Backend activo y respondiendo');
+});
+
+// Ruta de ping dedicada (opcional)
+app.get('/api/ping', (req, res) => {
+  res.status(200).send('pong');
+});
+
 // 🗺️ MAPA DE GÉNEROS DE TMDB
 const MAPA_GENEROS = {
   28: 'Acción', 12: 'Aventura', 16: 'Animación', 35: 'Comedia', 80: 'Crimen',
@@ -65,6 +75,8 @@ function extraerKeywordsLimpias(keywordsData) {
     .filter(name => !STOP_KEYWORDS.has(name) && name.length > 2)
     .slice(0, 5);
 }
+
+
 
 // Detector inteligente de secuelas/sagas
 function esSecuelaOSaga(candidata, peliculasInput) {
@@ -183,10 +195,10 @@ function obtenerConexionesReparto(peliculas) {
     .filter(p => p.peliculas.length >= 2);
 }
 
-// 🛡️ CAPA 1: FILTRADO DURO CON CONSOLA DE DIAGNÓSTICO Y BÚSQUEDA TÉCNICA
+// 🛡️ CAPA 1: BÚSQUEDA Y FILTRADO CON PAÍS PRIORITARIO DESDE EL INICIO
 async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieIds, gemaOculta = false, pesoTecnico = false, pais = '') {
   console.log(`\n====================================================`);
-  console.log(`🛡️ --- CAPA 1: BÚSQUEDA ${gemaOculta ? '💎 [GEMA OCULTA]' : '🎬 [NORMAL]'} | FOCO TÉCNICO: ${pesoTecnico ? 'ACTIVADO (CON PRIORIZACIÓN DE REPETICIÓN) 🎥' : 'DESACTIVADO'} | PAÍS: ${pais ? `🌐 [${pais}]` : 'TODOS'} ---`);
+  console.log(`🛡️ --- CAPA 1: BÚSQUEDA ${gemaOculta ? '💎 [GEMA OCULTA]' : '🎬 [NORMAL]'} | FOCO TÉCNICO: ${pesoTecnico ? 'ACTIVADO 🎥' : 'DESACTIVADO'} | PAÍS: ${pais ? `🌐 [${pais}]` : 'TODOS'} ---`);
 
   const clasificacionesOrigen = peliculasOrigen.map(p => obtenerClasificacionEdad(p.release_dates));
   const esOrigenAdulto = clasificacionesOrigen.some(c => c === 'R' || c === 'NC-17');
@@ -203,9 +215,8 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     peliculasOrigen.flatMap(p => extraerKeywordsLimpias(p.keywords))
   );
 
-  // 🎥 1. EXTRAER Y PONDERAR PERSONAS (Los que se repiten van primero)
+  // Ponderación de personas clave (actores/directores que se repiten van primero)
   const conteoPersonas = {};
-
   peliculasOrigen.forEach(p => {
     const directores = (p.credits?.crew || []).filter(c => c.job === 'Director');
     const guionistas = (p.credits?.crew || []).filter(c => ['Writer', 'Screenplay'].includes(c.job));
@@ -217,7 +228,6 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     });
   });
 
-  // Ordenamos los IDs de las personas de mayor a menor frecuencia de aparición
   const personasClaveIds = Object.keys(conteoPersonas)
     .map(Number)
     .sort((a, b) => conteoPersonas[b] - conteoPersonas[a]);
@@ -231,41 +241,53 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
   const candidatosEstandarMap = new Map();
   const queryPais = pais ? `&with_origin_country=${pais}` : '';
 
+  const generosOrigenIds = [...generosOrigenSet];
+  const generosQuery = generosOrigenIds.slice(0, 3).join('|');
+
   if (gemaOculta) {
-    const generosOrigenIds = [...generosOrigenSet];
     const generosEspecificos = generosOrigenIds.filter(id => id !== 18 && id !== 35);
     const generosAUsar = generosEspecificos.length > 0 ? generosEspecificos : generosOrigenIds;
-    const generosQuery = generosAUsar.slice(0, 3).join('|');
+    const gQuery = generosAUsar.slice(0, 3).join('|');
 
-    const paginaRandom = Math.floor(Math.random() * 4) + 1;
-    const urlGema = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_genres=${generosQuery}${queryPais}&sort_by=vote_average.desc&vote_count.gte=100&vote_count.lte=1500&popularity.lte=20&page=${paginaRandom}`;
+    const paginaRandom = Math.floor(Math.random() * 3) + 1;
+    const urlGema = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_genres=${gQuery}${queryPais}&sort_by=vote_average.desc&vote_count.gte=80&vote_count.lte=1500&popularity.lte=25&page=${paginaRandom}`;
     
     const resGema = await fetch(urlGema).then(r => r.json());
     (resGema.results || []).forEach(cand => candidatosEstandarMap.set(cand.id, { ...cand, frecuenciasAparicion: 1 }));
   } else {
-    // A. Búsqueda por Foco Técnico (Prioritaria)
+    const peticionesBase = [];
+
+    // A. Foco técnico prioritario (con filtro de país si aplica)
     if (pesoTecnico && personasClaveIds.length > 0) {
       const topPersonasQuery = personasClaveIds.slice(0, 10).join('|');
       const urlTecnica = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_people=${topPersonasQuery}${queryPais}&sort_by=popularity.desc&page=1`;
-      const resTec = await fetch(urlTecnica).then(r => r.json());
-      (resTec.results || []).forEach(cand => candidatosTecnicosMap.set(cand.id, cand));
+      peticionesBase.push(fetch(urlTecnica).then(r => r.json()).then(res => {
+        (res.results || []).forEach(cand => candidatosTecnicosMap.set(cand.id, cand));
+      }));
     }
 
-    // B. Búsqueda por Recomendaciones y Similar
-    const peticionesBase = [];
+    // B. SI HAY PAÍS SELECCIONADO: Consultas dedicadas por país desde el inicio
+    if (pais) {
+      // B1. Búsqueda directa en TMDB por país + géneros de las películas origen
+      if (generosQuery) {
+        const urlPaisGeneros = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_origin_country=${pais}&with_genres=${generosQuery}&sort_by=popularity.desc&page=1`;
+        peticionesBase.push(fetch(urlPaisGeneros).then(r => r.json()));
+      }
+      // B2. Búsqueda por país ordenada por popularidad como respaldo garantizado
+      const urlDiscoverPais = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_origin_country=${pais}&sort_by=popularity.desc&page=1`;
+      peticionesBase.push(fetch(urlDiscoverPais).then(r => r.json()));
+    }
+
+    // C. Recomendaciones y Similares de las películas seleccionadas
     for (const p of peliculasOrigen) {
       peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/recommendations?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
       peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/similar?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
     }
 
-    if (pais) {
-      const urlDiscoverPais = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_origin_country=${pais}&sort_by=popularity.desc&page=1`;
-      peticionesBase.push(fetch(urlDiscoverPais).then(r => r.json()));
-    }
-
     const respuestas = await Promise.all(peticionesBase);
     respuestas.forEach(res => {
-      (res.results || []).forEach(cand => {
+      if (!res || !res.results) return;
+      res.results.forEach(cand => {
         if (!candidatosEstandarMap.has(cand.id)) {
           candidatosEstandarMap.set(cand.id, { ...cand, frecuenciasAparicion: 1 });
         } else {
@@ -275,9 +297,10 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     });
   }
 
-  // 2. UNIR CANDIDATOS GARANTIZANDO PRIMERO LOS TÉCNICOS
+  // 2. UNIR Y FILTRAR POR PAÍS ANTES DE PEDIR DETALLES COMPLETO
   const mapaCandidatosBrutos = new Map();
 
+  // Priorizar candidatos técnicos
   candidatosTecnicosMap.forEach((cand, id) => {
     mapaCandidatosBrutos.set(id, { ...cand, frecuenciasAparicion: 1 });
   });
@@ -290,10 +313,22 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     }
   });
 
-  const candidatosRaw = Array.from(mapaCandidatosBrutos.values());
+  let candidatosRaw = Array.from(mapaCandidatosBrutos.values());
 
-  // Ahora el slice(0, 35) SÍ incluirá todas las películas encontradas por Foco Técnico
-  const promesasDetalles = candidatosRaw.slice(0, 35).map(cand =>
+  // 🎯 PRE-FILTRADO POR PAÍS EN LA LISTA BRUTA
+  if (pais) {
+    const candidatosConPais = candidatosRaw.filter(cand => {
+      if (!cand.origin_country || cand.origin_country.length === 0) return true;
+      return cand.origin_country.includes(pais);
+    });
+
+    if (candidatosConPais.length >= 5) {
+      candidatosRaw = candidatosConPais;
+    }
+  }
+
+  // Ahora el corte de detalles se hace sobre una lista que ya contiene películas del país indicado
+  const promesasDetalles = candidatosRaw.slice(0, 45).map(cand =>
     fetch(`https://api.themoviedb.org/3/movie/${cand.id}?api_key=${API_KEY}&append_to_response=keywords,release_dates,credits&language=es-ES`).then(r => r.json())
   );
 
@@ -307,6 +342,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     if (excludeIds.includes(cand.id)) continue;
     if (esSecuelaOSaga(cand, peliculasOrigen)) continue;
 
+    // 🌐 VETO DURO EN FICHA DETALLADA (Por origin_country o production_countries)
     if (pais) {
       const paisesOrigenCand = cand.origin_country || [];
       const paisesProducCand = (cand.production_countries || []).map(pc => pc.iso_3166_1);
@@ -636,9 +672,4 @@ app.get('/api/adn', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 CineLab Backend activo en http://localhost:${PORT}`);
-});
-
-// Endpoint para mantener vivo el backend
-app.get('/api/ping', (req, res) => {
-  res.status(200).send('pong');
 });
