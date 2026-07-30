@@ -637,3 +637,8 @@ app.get('/api/adn', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 CineLab Backend activo en http://localhost:${PORT}`);
 });
+
+// Endpoint para mantener vivo el backend
+app.get('/api/ping', (req, res) => {
+  res.status(200).send('pong');
+});
