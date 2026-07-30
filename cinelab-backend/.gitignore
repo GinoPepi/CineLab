@@ -1,0 +1,5 @@
+# Excluir variables de entorno con tus API Keys
+.env
+**/.env
+cinelab-backend/.env
+*.env.local.env 
