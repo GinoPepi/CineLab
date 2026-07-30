@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const BACKEND_URL = 'http://localhost:5000/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 const ROL_ESTILOS = {
   director: { bg: 'bg-purple-500/10', text: 'text-purple-300', border: 'border-purple-500/30', icon: '🎬' },
