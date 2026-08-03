@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
@@ -24,6 +24,24 @@ const PAISES = [
   { code: 'DE', label: '🇩🇪 Alemania' },
   { code: 'BR', label: '🇧🇷 Brasil' }
 ];
+
+const EXPLICACIONES_FILTROS = {
+  pais: {
+    titulo: '🌐 Filtro por País de Origen',
+    icono: '🌐',
+    descripcion: 'Restringe el análisis para que el motor busque únicamente películas producidas o financiadas en el país seleccionado. Útil si querés explorar cinematografía local o regional.'
+  },
+  gemaOculta: {
+    titulo: '💎 Cine Oculto (Joyas de Culto)',
+    icono: '💎',
+    descripcion: 'Filtra películas poco conocidas fuera del circuito comercial que cuentan con excelentes valoraciones de la crítica (pocas votaciones pero notas muy altas).'
+  },
+  pesoTecnico: {
+    titulo: '🎥 Sello de Autor (Coincidencia Técnica)',
+    icono: '🎥',
+    descripcion: 'Otorga máxima prioridad a películas que compartan el mismo Director/a, Guionista, Director/a de Fotografía o reparto principal con las películas que seleccionaste.'
+  }
+};
 
 function DesgloseCard({ comp }) {
   const [expanded, setExpanded] = useState(false);
@@ -96,7 +114,7 @@ function DesgloseCard({ comp }) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('sintesis'); // 'sintesis' o 'desglose'
+  const [activeTab, setActiveTab] = useState('sintesis'); // 'sintesis' o 'descomposicion'
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedMovies, setSelectedMovies] = useState([]);
@@ -108,6 +126,19 @@ export default function App() {
   const [error, setError] = useState(null);
   const [excludedIds, setExcludedIds] = useState([]);
 
+  // Estados de Modales y Búsqueda Visual
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [modalExplicacion, setModalExplicacion] = useState(null);
+  const modalInputRef = useRef(null);
+
+  // Auto-focus al abrir modal de búsqueda
+  useEffect(() => {
+    if (isSearchOpen && modalInputRef.current) {
+      modalInputRef.current.focus();
+    }
+  }, [isSearchOpen]);
+
+  // Búsqueda en vivo
   useEffect(() => {
     if (searchQuery.trim().length < 2) {
       setSearchResults([]);
@@ -118,7 +149,7 @@ export default function App() {
       try {
         const res = await fetch(`${BACKEND_URL}/buscar?query=${encodeURIComponent(searchQuery)}`);
         const data = await res.json();
-        setSearchResults(data.slice(0, 5) || []);
+        setSearchResults(data.slice(0, 6) || []);
       } catch (err) {
         console.error('Error al buscar:', err);
       }
@@ -127,8 +158,40 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Manejar información de primera vez
+  const manejarExplicacionPrimerUso = (claveFiltro) => {
+    const yaVisto = localStorage.getItem(`cinelab_seen_${claveFiltro}`);
+    if (!yaVisto) {
+      setModalExplicacion(EXPLICACIONES_FILTROS[claveFiltro]);
+      localStorage.setItem(`cinelab_seen_${claveFiltro}`, 'true');
+    }
+  };
+
+  const handlePaisChange = (nuevoPais) => {
+    setPais(nuevoPais);
+    if (nuevoPais !== '') {
+      manejarExplicacionPrimerUso('pais');
+    }
+  };
+
+  const handleGemaChange = (e) => {
+    const checked = e.target.checked;
+    setGemaOculta(checked);
+    if (checked) {
+      manejarExplicacionPrimerUso('gemaOculta');
+    }
+  };
+
+  const handleTecnicoChange = (e) => {
+    const checked = e.target.checked;
+    setPesoTecnico(checked);
+    if (checked) {
+      manejarExplicacionPrimerUso('pesoTecnico');
+    }
+  };
+
   const addMovie = (movie) => {
-    const max = activeTab === 'desglose' ? 1 : 3;
+    const max = activeTab === 'descomposicion' ? 1 : 3;
 
     if (result || selectedMovies.length >= max) {
       setSelectedMovies([movie]);
@@ -137,6 +200,7 @@ export default function App() {
       setExcludedIds([]);
       setSearchQuery('');
       setSearchResults([]);
+      setIsSearchOpen(false);
       return;
     }
 
@@ -146,6 +210,7 @@ export default function App() {
     setSelectedMovies([...selectedMovies, movie]);
     setSearchQuery('');
     setSearchResults([]);
+    setIsSearchOpen(false);
   };
 
   const removeMovie = (id) => {
@@ -181,7 +246,7 @@ export default function App() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         setResult({ type: 'caldero', data });
-      } else if (activeTab === 'desglose') {
+      } else if (activeTab === 'descomposicion') {
         const id = selectedMovies[0].id;
         const excludeQuery = currentExcluded.length > 0 ? `&excludeIds=${currentExcluded.join(',')}` : '';
         const res = await fetch(`${BACKEND_URL}/adn?movieId=${id}&pesoTecnico=${pesoTecnico}&pais=${pais}${excludeQuery}`);
@@ -225,73 +290,34 @@ export default function App() {
               🧪 Síntesis (3→1)
             </button>
             <button
-              onClick={() => { setActiveTab('desglose'); setSelectedMovies([]); setResult(null); setError(null); setExcludedIds([]); }}
+              onClick={() => { setActiveTab('descomposicion'); setSelectedMovies([]); setResult(null); setError(null); setExcludedIds([]); }}
               className={`flex-1 py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'desglose' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
+                activeTab === 'descomposicion' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              🔬 Desglose Espectral (1→3)
+              🔬 Descomposición (1→3)
             </button>
           </div>
 
-          {/* Banner explicativo de cada herramienta */}
+          {/* Banner explicativo */}
           <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-3 text-center max-w-lg mx-auto">
             {activeTab === 'sintesis' ? (
               <p className="text-xs text-slate-300">
-                <strong className="text-indigo-400">Síntesis Cinematográfica:</strong> Seleccioná <span className="text-white font-bold">3 películas</span>. CineLab analiza su tono y estética para recomendarte la <span className="text-white font-bold">obra que las conecta</span>.
+                <strong className="text-indigo-400">Síntesis:</strong> Seleccioná <span className="text-white font-bold">3 películas</span>. CineLab analiza su tono y estética para recomendarte la <span className="text-white font-bold">obra que las conecta</span>.
               </p>
             ) : (
               <p className="text-xs text-slate-300">
-                <strong className="text-purple-400">Desglose Espectral:</strong> Seleccioná <span className="text-white font-bold">1 película</span>. El laboratorio descompone sus ejes temáticos y busca <span className="text-white font-bold">3 obras que los exploran a mayor profundidad</span>.
+                <strong className="text-purple-400">Descomposición:</strong> Seleccioná <span className="text-white font-bold">1 película</span>. El laboratorio desglosa sus ejes temáticos y busca <span className="text-white font-bold">3 obras que los exploran a mayor profundidad</span>.
               </p>
             )}
           </div>
-        </div>
-
-        {/* Buscador */}
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={
-              activeTab === 'desglose'
-                ? "Buscá 1 película para descomponer sus ejes temáticos..."
-                : "Buscá y agregá películas para la mezcla..."
-            }
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-all placeholder:text-slate-500 shadow-inner"
-          />
-
-          {searchResults.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden z-50 shadow-2xl">
-              {searchResults.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => addMovie(m)}
-                  className="w-full flex items-center justify-between gap-3 p-3 hover:bg-slate-800 transition-all text-left border-b border-slate-800/50 last:border-none"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {m.poster_path ? (
-                      <img src={`https://image.tmdb.org/t/p/w92${m.poster_path}`} alt={m.title} className="w-9 sm:w-10 aspect-[2/3] object-cover rounded-md flex-shrink-0" />
-                    ) : (
-                      <div className="w-9 sm:w-10 aspect-[2/3] bg-slate-800 rounded-md flex items-center justify-center text-xs flex-shrink-0">🎬</div>
-                    )}
-                    <div className="min-w-0">
-                      <div className="font-medium text-slate-100 text-xs sm:text-sm truncate">{m.title}</div>
-                      <div className="text-[11px] sm:text-xs text-slate-400">{m.release_date ? m.release_date.split('-')[0] : 'Año N/D'}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Muestra de películas seleccionadas y filtros */}
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/50 pb-2 sm:border-none sm:pb-0">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Películas en Mesa ({selectedMovies.length}/{activeTab === 'desglose' ? 1 : 3})
+              Películas en Mesa ({selectedMovies.length}/{activeTab === 'descomposicion' ? 1 : 3})
             </h2>
 
             <div className="flex items-center justify-between sm:justify-end gap-2.5 flex-wrap">
@@ -307,9 +333,8 @@ export default function App() {
               {/* Selector de País */}
               <select
                 value={pais}
-                onChange={(e) => setPais(e.target.value)}
-                className="bg-slate-900 border border-slate-800 text-slate-300 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-indigo-500 cursor-pointer"
-                title="Filtrar recomendaciones por país de origen"
+                onChange={(e) => handlePaisChange(e.target.value)}
+                className="bg-slate-900 border border-slate-800 text-slate-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
               >
                 {PAISES.map((p) => (
                   <option key={p.code} value={p.code}>
@@ -318,31 +343,25 @@ export default function App() {
                 ))}
               </select>
 
-              {/* Filtro Cine Oculto (Gema Oculta) */}
+              {/* Filtro Cine Oculto */}
               {activeTab === 'sintesis' && (
-                <label
-                  className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-amber-400 hover:text-amber-300 transition-all select-none"
-                  title="Busca películas de culto poco conocidas con excelentes calificaciones"
-                >
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-amber-400 hover:text-amber-300 transition-all select-none">
                   <input
                     type="checkbox"
                     checked={gemaOculta}
-                    onChange={(e) => setGemaOculta(e.target.checked)}
+                    onChange={handleGemaChange}
                     className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-amber-500/20"
                   />
                   💎 Cine Oculto
                 </label>
               )}
 
-              {/* Filtro Sello de Autor (Peso Técnico) */}
-              <label
-                className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-purple-400 hover:text-purple-300 transition-all select-none"
-                title="Prioriza películas que compartan director, guionista, fotógrafo o actores principales"
-              >
+              {/* Filtro Sello de Autor */}
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-purple-400 hover:text-purple-300 transition-all select-none">
                 <input
                   type="checkbox"
                   checked={pesoTecnico}
-                  onChange={(e) => setPesoTecnico(e.target.checked)}
+                  onChange={handleTecnicoChange}
                   className="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-purple-500/20"
                 />
                 🎥 Sello de Autor
@@ -350,6 +369,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Slots de Películas Interactivos */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             {selectedMovies.map((movie) => (
               <div key={movie.id} className="relative bg-slate-900 border border-slate-800 rounded-xl p-2.5 sm:p-3 flex items-center gap-3 shadow-md">
@@ -371,26 +391,31 @@ export default function App() {
               </div>
             ))}
 
-            {Array.from({ length: (activeTab === 'desglose' ? 1 : 3) - selectedMovies.length }).map((_, i) => (
-              <div key={i} className="border-2 border-dashed border-slate-800/80 rounded-xl p-3 sm:p-4 flex items-center justify-center text-slate-600 text-xs font-medium h-16 sm:h-20">
-                + Seleccionar película
-              </div>
+            {/* Casillas Vacías AHORA HABILITADAS Y CLICKABLES */}
+            {Array.from({ length: (activeTab === 'descomposicion' ? 1 : 3) - selectedMovies.length }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setIsSearchOpen(true)}
+                className="border-2 border-dashed border-slate-800 hover:border-indigo-500/60 hover:bg-slate-900/60 rounded-xl p-3 sm:p-4 flex items-center justify-center text-slate-500 hover:text-indigo-300 text-xs font-semibold h-16 sm:h-20 transition-all cursor-pointer group"
+              >
+                <span className="group-hover:scale-105 transition-transform">🔍 + Buscar y agregar película</span>
+              </button>
             ))}
           </div>
         </div>
 
         {/* Botón de Acción */}
-        {selectedMovies.length === (activeTab === 'desglose' ? 1 : 3) && (
+        {selectedMovies.length === (activeTab === 'descomposicion' ? 1 : 3) && (
           <button
             onClick={() => runTool(false)}
             disabled={loading}
-            className="w-full py-3.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:opacity-95 text-white font-bold text-sm sm:text-base rounded-xl transition-all shadow-lg hover:shadow-indigo-500/25 disabled:opacity-50 tracking-wide"
+            className="w-full py-3.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:opacity-95 text-white font-bold text-sm sm:text-base rounded-xl transition-all shadow-lg hover:shadow-indigo-500/25 disabled:opacity-50"
           >
             {loading
               ? 'Procesando en el laboratorio...'
               : activeTab === 'sintesis'
               ? '🧪 Iniciar Síntesis 🚀'
-              : '🔬 Ejecutar Desglose 🚀'}
+              : '🔬 Ejecutar Descomposición 🚀'}
           </button>
         )}
 
@@ -489,13 +514,13 @@ export default function App() {
               </div>
             )}
 
-            {/* RESULTADO DESGLOSE ESPECTRAL */}
+            {/* RESULTADO DESCOMPOSICIÓN */}
             {result.type === 'adn' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                     <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-full text-[11px] sm:text-xs font-semibold inline-block">
-                      🔬 Desglose Espectral de {result.data.pelicula}
+                      🔬 Descomposición de {result.data.pelicula}
                     </span>
                     {result.data.modoPais && (
                       <span className="px-2.5 py-1 bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 rounded-full text-[11px] sm:text-xs font-semibold inline-block">
@@ -591,6 +616,81 @@ export default function App() {
         )}
 
       </div>
+
+      {/* 🔍 MODAL EMERGENTE DE BÚSQUEDA PANTALLA COMPLETA */}
+      {isSearchOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-4 sm:p-6 space-y-4 shadow-2xl mt-4 sm:mt-12">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                🔍 Buscar Película para {activeTab === 'sintesis' ? 'Síntesis' : 'Descomposición'}
+              </h3>
+              <button
+                onClick={() => setIsSearchOpen(false)}
+                className="text-slate-400 hover:text-white text-base font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <input
+              ref={modalInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Escribí el título de una película (ej: El secreto de sus ojos, Matrix)..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-all text-slate-100 placeholder:text-slate-500"
+            />
+
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              {searchResults.length === 0 && searchQuery.trim().length >= 2 && (
+                <p className="text-xs text-slate-500 text-center py-6">No se encontraron películas con ese título.</p>
+              )}
+
+              {searchResults.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => addMovie(m)}
+                  className="w-full flex items-center justify-between gap-3 p-3 hover:bg-slate-800/80 rounded-xl transition-all text-left border border-slate-800/50 group"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    {m.poster_path ? (
+                      <img src={`https://image.tmdb.org/t/p/w92${m.poster_path}`} alt={m.title} className="w-10 aspect-[2/3] object-cover rounded-lg flex-shrink-0" />
+                    ) : (
+                      <div className="w-10 aspect-[2/3] bg-slate-800 rounded-lg flex items-center justify-center text-xs flex-shrink-0">🎬</div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-100 text-xs sm:text-sm truncate group-hover:text-indigo-300">{m.title}</div>
+                      <div className="text-[11px] text-slate-400">{m.release_date ? m.release_date.split('-')[0] : 'Año N/D'}</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Seleccionar +
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 💡 MODAL DE EXPLICACIÓN AL ACTIVAR FILTROS POR PRIMERA VEZ */}
+      {modalExplicacion && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-indigo-500/30 max-w-md w-full rounded-2xl p-5 space-y-4 shadow-2xl text-center">
+            <div className="text-3xl">{modalExplicacion.icono}</div>
+            <h3 className="text-base font-bold text-slate-100">{modalExplicacion.titulo}</h3>
+            <p className="text-xs text-slate-300 leading-relaxed">{modalExplicacion.descripcion}</p>
+            <button
+              onClick={() => setModalExplicacion(null)}
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md"
+            >
+              ¡Entendido! 👍
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
