@@ -19,7 +19,7 @@ app.get('/', (req, res) => {
   res.status(200).send('🚀 CineLab Backend activo y respondiendo');
 });
 
-// Ruta de ping dedicada (opcional)
+// Ruta de ping dedicada
 app.get('/api/ping', (req, res) => {
   res.status(200).send('pong');
 });
@@ -75,8 +75,6 @@ function extraerKeywordsLimpias(keywordsData) {
     .filter(name => !STOP_KEYWORDS.has(name) && name.length > 2)
     .slice(0, 5);
 }
-
-
 
 // Detector inteligente de secuelas/sagas
 function esSecuelaOSaga(candidata, peliculasInput) {
@@ -215,7 +213,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     peliculasOrigen.flatMap(p => extraerKeywordsLimpias(p.keywords))
   );
 
-  // Ponderación de personas clave (actores/directores que se repiten van primero)
+  // Ponderación de personas clave
   const conteoPersonas = {};
   peliculasOrigen.forEach(p => {
     const directores = (p.credits?.crew || []).filter(c => c.job === 'Director');
@@ -257,7 +255,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
   } else {
     const peticionesBase = [];
 
-    // A. Foco técnico prioritario (con filtro de país si aplica)
+    // A. Foco técnico prioritario
     if (pesoTecnico && personasClaveIds.length > 0) {
       const topPersonasQuery = personasClaveIds.slice(0, 10).join('|');
       const urlTecnica = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_people=${topPersonasQuery}${queryPais}&sort_by=popularity.desc&page=1`;
@@ -266,19 +264,17 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       }));
     }
 
-    // B. SI HAY PAÍS SELECCIONADO: Consultas dedicadas por país desde el inicio
+    // B. Consultas por país desde el inicio si aplica
     if (pais) {
-      // B1. Búsqueda directa en TMDB por país + géneros de las películas origen
       if (generosQuery) {
         const urlPaisGeneros = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_origin_country=${pais}&with_genres=${generosQuery}&sort_by=popularity.desc&page=1`;
         peticionesBase.push(fetch(urlPaisGeneros).then(r => r.json()));
       }
-      // B2. Búsqueda por país ordenada por popularidad como respaldo garantizado
       const urlDiscoverPais = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_origin_country=${pais}&sort_by=popularity.desc&page=1`;
       peticionesBase.push(fetch(urlDiscoverPais).then(r => r.json()));
     }
 
-    // C. Recomendaciones y Similares de las películas seleccionadas
+    // C. Recomendaciones y Similares
     for (const p of peliculasOrigen) {
       peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/recommendations?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
       peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/similar?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
@@ -297,10 +293,9 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     });
   }
 
-  // 2. UNIR Y FILTRAR POR PAÍS ANTES DE PEDIR DETALLES COMPLETO
+  // 2. UNIR CANDIDATOS
   const mapaCandidatosBrutos = new Map();
 
-  // Priorizar candidatos técnicos
   candidatosTecnicosMap.forEach((cand, id) => {
     mapaCandidatosBrutos.set(id, { ...cand, frecuenciasAparicion: 1 });
   });
@@ -315,7 +310,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
 
   let candidatosRaw = Array.from(mapaCandidatosBrutos.values());
 
-  // 🎯 PRE-FILTRADO POR PAÍS EN LA LISTA BRUTA
+  // PRE-FILTRADO POR PAÍS
   if (pais) {
     const candidatosConPais = candidatosRaw.filter(cand => {
       if (!cand.origin_country || cand.origin_country.length === 0) return true;
@@ -327,7 +322,6 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     }
   }
 
-  // Ahora el corte de detalles se hace sobre una lista que ya contiene películas del país indicado
   const promesasDetalles = candidatosRaw.slice(0, 45).map(cand =>
     fetch(`https://api.themoviedb.org/3/movie/${cand.id}?api_key=${API_KEY}&append_to_response=keywords,release_dates,credits&language=es-ES`).then(r => r.json())
   );
@@ -342,7 +336,6 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     if (excludeIds.includes(cand.id)) continue;
     if (esSecuelaOSaga(cand, peliculasOrigen)) continue;
 
-    // 🌐 VETO DURO EN FICHA DETALLADA (Por origin_country o production_countries)
     if (pais) {
       const paisesOrigenCand = cand.origin_country || [];
       const paisesProducCand = (cand.production_countries || []).map(pc => pc.iso_3166_1);
@@ -434,7 +427,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
   return topFinal;
 }
 
-// 🤖 CAPA 2 CON GROQ (EVALÚA 15 OPCIONES EN EL CALDERO)
+// 🤖 CAPA 2: SÍNTESIS CON GROQ (15 OPCIONES)
 async function analizarYRecomendarConIA(origen, candidatasCapa1) {
   console.log("🤖 --- CAPA 2: EVALUACIÓN SEMÁNTICA CON GROQ (15 OPCIONES) ---");
 
@@ -484,26 +477,27 @@ Responde ÚNICAMENTE un objeto JSON con esta estructura exacta:
   }
 }
 
-// 🤖 CAPA 2 ADN CON GROQ (EVALÚA 15 OPCIONES EN ADN)
+// 🤖 CAPA 2: DESGLOSE ESPECTRAL Y PROFUNDIZACIÓN CON GROQ
 async function seleccionarYAnalizarADNConIA(peliculaTarget, candidatasCapa1) {
-  console.log(`🤖 Capa 2 ADN: Groq desglosando componentes para "${peliculaTarget.title}" entre 15 opciones...`);
+  console.log(`🤖 Capa 2: Groq analizando profundización temática para "${peliculaTarget.title}"...`);
 
   const candidatosTexto = candidatasCapa1
     .map(c => `- ID ${c.id}: "${c.title}" [Clasificación: ${c.clasificacionEdad}] | Temáticas: [${c.keywordsLimpias.join(', ')}] | Sinopsis: ${c.overview || 'Sin descripción'}`)
     .join('\n');
 
-  const prompt = `Eres un crítico de cine experto de CineLab.
-Película principal: "${peliculaTarget.title}" (${peliculaTarget.overview || 'Sin descripción'}).
+  const prompt = `Eres un analista cinematográfico experto de CineLab.
+Película a analizar: "${peliculaTarget.title}" (${peliculaTarget.overview || 'Sin descripción'}).
 
 Candidatas pre-filtradas:
 ${candidatosTexto}
 
 TAREA:
-1. Selecciona EXACTAMENTE 3 películas de la lista pre-filtrada que formen la mejor combinación de influencias conceptuales para "${peliculaTarget.title}".
-2. Redacta un análisis de 3 frases en español explicando qué aporta cada una a la identidad de "${peliculaTarget.title}".
+1. Descompón los ejes temáticos, tono y propuesta narrativa de "${peliculaTarget.title}".
+2. Selecciona EXACTAMENTE 3 películas de la lista que exploren o desarrollen esos mismos temas, dilemas o estéticas con MAYOR PROFUNDIDAD o desde un ángulo más especializado.
+3. Redacta un análisis de 3 frases en español explicando qué dimensión temática de "${peliculaTarget.title}" profundiza cada una de las 3 elegidas.
 
 Responde ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
-{"idsElegidos": [ID_NUMERO_1, ID_NUMERO_2, ID_NUMERO_3], "argumentoADN": "Tu análisis de 3 frases mencionando las 3 películas."}`;
+{"idsElegidos": [ID_NUMERO_1, ID_NUMERO_2, ID_NUMERO_3], "argumentoADN": "Tu análisis de 3 frases justificando cómo profundizan los temas de la película analizada."}`;
 
   try {
     const response = await groq.chat.completions.create({
@@ -515,14 +509,14 @@ Responde ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
     });
 
     const raw = response.choices[0]?.message?.content;
-    console.log("✅ Capa 2 ADN completada con Groq!");
+    console.log("✅ Capa 2 completada con Groq!");
     return JSON.parse(raw);
 
   } catch (err) {
-    console.log(`⚠️ AVISO CAPA 2 ADN (GROQ): ${err.message}. Usando selección de respaldo.`);
+    console.log(`⚠️ AVISO CAPA 2 (GROQ): ${err.message}. Usando selección de respaldo.`);
     return {
       idsElegidos: candidatasCapa1.slice(0, 3).map(c => c.id),
-      argumentoADN: `"${peliculaTarget.title}" sintetiza elementos clave de género y narrativa presentes en estas tres obras.`
+      argumentoADN: `Obras seleccionadas por su alta coincidencia en el desarrollo profundo de los temas centrales de "${peliculaTarget.title}".`
     };
   }
 }
@@ -543,9 +537,9 @@ app.get('/api/buscar', async (req, res) => {
   }
 });
 
-// 🧪 RUTA EL CALDERO
+// 🧪 RUTA SÍNTESIS (EL CALDERO)
 app.post('/api/caldero', async (req, res) => {
-  console.log("\n🧪 --- NUEVA MEZCLA RECIBIDA EN EL CALDERO ---");
+  console.log("\n🧪 --- NUEVA MEZCLA RECIBIDA EN SÍNTESIS ---");
   try {
     const { movieIds, gemaOculta = false, pesoTecnico = false, pais = '', excludeIds = [] } = req.body;
 
@@ -597,14 +591,14 @@ app.post('/api/caldero', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error en El Caldero:', error);
+    console.error('❌ Error en Síntesis:', error);
     res.status(500).json({ error: 'Error al procesar la mezcla.' });
   }
 });
 
-// 🧬 RUTA ADN CINEMATOGRÁFICO
+// 🔬 RUTA DESGLOSE ESPECTRAL
 app.get('/api/adn', async (req, res) => {
-  console.log("\n🧬 --- SOLICITUD DE DESGLOSE ADN ---");
+  console.log("\n🔬 --- SOLICITUD DE DESGLOSE ESPECTRAL ---");
   try {
     const { movieId, excludeIds = '', pesoTecnico = 'false', pais = '' } = req.query;
     if (!movieId) return res.status(400).json({ error: 'Debes enviar un ID de película.' });
@@ -622,7 +616,7 @@ app.get('/api/adn', async (req, res) => {
     const candidatosCapa1 = await ejecutarCapa1FiltradoYScoring([peliculaOriginal], excludedList, [parseInt(movieId)], false, esPesoTecnico, pais);
 
     if (candidatosCapa1.length < 3) {
-      return res.status(404).json({ error: 'No se encontraron suficientes componentes inéditos para este país.' });
+      return res.status(404).json({ error: 'No se encontraron suficientes componentes para este país.' });
     }
 
     const resultadoIA = await seleccionarYAnalizarADNConIA(peliculaOriginal, candidatosCapa1);
@@ -665,7 +659,7 @@ app.get('/api/adn', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error en ADN:', error);
+    console.error('❌ Error en Desglose:', error);
     res.status(500).json({ error: 'Error al desglosar la película.' });
   }
 });

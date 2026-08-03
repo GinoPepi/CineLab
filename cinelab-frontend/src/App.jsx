@@ -25,7 +25,7 @@ const PAISES = [
   { code: 'BR', label: '🇧🇷 Brasil' }
 ];
 
-function AdnCard({ comp }) {
+function DesgloseCard({ comp }) {
   const [expanded, setExpanded] = useState(false);
   const esLargo = comp.sinopsis && comp.sinopsis.length > 100;
 
@@ -96,7 +96,7 @@ function AdnCard({ comp }) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('caldero');
+  const [activeTab, setActiveTab] = useState('sintesis'); // 'sintesis' o 'desglose'
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedMovies, setSelectedMovies] = useState([]);
@@ -128,7 +128,7 @@ export default function App() {
   }, [searchQuery]);
 
   const addMovie = (movie) => {
-    const max = activeTab === 'adn' ? 1 : 3;
+    const max = activeTab === 'desglose' ? 1 : 3;
 
     if (result || selectedMovies.length >= max) {
       setSelectedMovies([movie]);
@@ -171,7 +171,7 @@ export default function App() {
     setExcludedIds(currentExcluded);
 
     try {
-      if (activeTab === 'caldero') {
+      if (activeTab === 'sintesis') {
         const ids = selectedMovies.map((m) => m.id);
         const res = await fetch(`${BACKEND_URL}/caldero`, {
           method: 'POST',
@@ -181,7 +181,7 @@ export default function App() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         setResult({ type: 'caldero', data });
-      } else if (activeTab === 'adn') {
+      } else if (activeTab === 'desglose') {
         const id = selectedMovies[0].id;
         const excludeQuery = currentExcluded.length > 0 ? `&excludeIds=${currentExcluded.join(',')}` : '';
         const res = await fetch(`${BACKEND_URL}/adn?movieId=${id}&pesoTecnico=${pesoTecnico}&pais=${pais}${excludeQuery}`);
@@ -201,33 +201,51 @@ export default function App() {
       <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
         
         {/* Header */}
-        <header className="text-center space-y-1.5 sm:space-y-2">
+        <header className="text-center space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-mono mb-1">
+            🔬 LABORATORIO DE ANÁLISIS CINEMATOGRÁFICO
+          </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-purple-500 to-indigo-500">
-            CINELAB 🎬
+            CINELAB
           </h1>
-          <p className="text-slate-400 text-xs sm:text-sm md:text-base">
-            Laboratorio de recomendación y relaciones de cine
+          <p className="text-slate-400 text-xs sm:text-sm max-w-lg mx-auto">
+            Herramienta experimental para sintetizar coincidencias estéticas y descomponer películas en sus temáticas profundas.
           </p>
         </header>
 
-        {/* Pestañas */}
-        <div className="flex justify-center gap-1.5 sm:gap-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 max-w-md mx-auto">
-          <button
-            onClick={() => { setActiveTab('caldero'); setSelectedMovies([]); setResult(null); setError(null); setExcludedIds([]); }}
-            className={`flex-1 py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all ${
-              activeTab === 'caldero' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            🧪 El Caldero (3→1)
-          </button>
-          <button
-            onClick={() => { setActiveTab('adn'); setSelectedMovies([]); setResult(null); setError(null); setExcludedIds([]); }}
-            className={`flex-1 py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all ${
-              activeTab === 'adn' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            🧬 ADN (1→3)
-          </button>
+        {/* Pestañas de Experimentos */}
+        <div className="space-y-3">
+          <div className="flex justify-center gap-1.5 sm:gap-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 max-w-lg mx-auto">
+            <button
+              onClick={() => { setActiveTab('sintesis'); setSelectedMovies([]); setResult(null); setError(null); setExcludedIds([]); }}
+              className={`flex-1 py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
+                activeTab === 'sintesis' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              🧪 Síntesis (3→1)
+            </button>
+            <button
+              onClick={() => { setActiveTab('desglose'); setSelectedMovies([]); setResult(null); setError(null); setExcludedIds([]); }}
+              className={`flex-1 py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
+                activeTab === 'desglose' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              🔬 Desglose Espectral (1→3)
+            </button>
+          </div>
+
+          {/* Banner explicativo de cada herramienta */}
+          <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-3 text-center max-w-lg mx-auto">
+            {activeTab === 'sintesis' ? (
+              <p className="text-xs text-slate-300">
+                <strong className="text-indigo-400">Síntesis Cinematográfica:</strong> Seleccioná <span className="text-white font-bold">3 películas</span>. CineLab analiza su tono y estética para recomendarte la <span className="text-white font-bold">obra que las conecta</span>.
+              </p>
+            ) : (
+              <p className="text-xs text-slate-300">
+                <strong className="text-purple-400">Desglose Espectral:</strong> Seleccioná <span className="text-white font-bold">1 película</span>. El laboratorio descompone sus ejes temáticos y busca <span className="text-white font-bold">3 obras que los exploran a mayor profundidad</span>.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Buscador */}
@@ -237,11 +255,11 @@ export default function App() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={
-              activeTab === 'adn'
-                ? "Buscá 1 película para analizar su ADN..."
-                : "Buscá y elegí películas..."
+              activeTab === 'desglose'
+                ? "Buscá 1 película para descomponer sus ejes temáticos..."
+                : "Buscá y agregá películas para la mezcla..."
             }
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-all placeholder:text-slate-500"
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-all placeholder:text-slate-500 shadow-inner"
           />
 
           {searchResults.length > 0 && (
@@ -269,11 +287,11 @@ export default function App() {
           )}
         </div>
 
-        {/* Películas Seleccionadas y Filtros */}
+        {/* Muestra de películas seleccionadas y filtros */}
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/50 pb-2 sm:border-none sm:pb-0">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Películas Seleccionadas ({selectedMovies.length}/{activeTab === 'adn' ? 1 : 3})
+              Películas en Mesa ({selectedMovies.length}/{activeTab === 'desglose' ? 1 : 3})
             </h2>
 
             <div className="flex items-center justify-between sm:justify-end gap-2.5 flex-wrap">
@@ -286,11 +304,12 @@ export default function App() {
                 </button>
               )}
 
-              {/* 🌐 SELECTOR DE PAÍS */}
+              {/* Selector de País */}
               <select
                 value={pais}
                 onChange={(e) => setPais(e.target.value)}
                 className="bg-slate-900 border border-slate-800 text-slate-300 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                title="Filtrar recomendaciones por país de origen"
               >
                 {PAISES.map((p) => (
                   <option key={p.code} value={p.code}>
@@ -299,33 +318,41 @@ export default function App() {
                 ))}
               </select>
 
-              {activeTab === 'caldero' && (
-                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-amber-400 hover:text-amber-300 transition-all select-none">
+              {/* Filtro Cine Oculto (Gema Oculta) */}
+              {activeTab === 'sintesis' && (
+                <label
+                  className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-amber-400 hover:text-amber-300 transition-all select-none"
+                  title="Busca películas de culto poco conocidas con excelentes calificaciones"
+                >
                   <input
                     type="checkbox"
                     checked={gemaOculta}
                     onChange={(e) => setGemaOculta(e.target.checked)}
                     className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-amber-500/20"
                   />
-                  💎 Gema Oculta
+                  💎 Cine Oculto
                 </label>
               )}
 
-              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-purple-400 hover:text-purple-300 transition-all select-none">
+              {/* Filtro Sello de Autor (Peso Técnico) */}
+              <label
+                className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-purple-400 hover:text-purple-300 transition-all select-none"
+                title="Prioriza películas que compartan director, guionista, fotógrafo o actores principales"
+              >
                 <input
                   type="checkbox"
                   checked={pesoTecnico}
                   onChange={(e) => setPesoTecnico(e.target.checked)}
                   className="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-purple-500/20"
                 />
-                🎬 Foco Técnico
+                🎥 Sello de Autor
               </label>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             {selectedMovies.map((movie) => (
-              <div key={movie.id} className="relative bg-slate-900 border border-slate-800 rounded-xl p-2.5 sm:p-3 flex items-center gap-3">
+              <div key={movie.id} className="relative bg-slate-900 border border-slate-800 rounded-xl p-2.5 sm:p-3 flex items-center gap-3 shadow-md">
                 {movie.poster_path ? (
                   <img src={`https://image.tmdb.org/t/p/w92${movie.poster_path}`} alt={movie.title} className="w-10 sm:w-12 aspect-[2/3] object-cover rounded-md flex-shrink-0" />
                 ) : (
@@ -344,22 +371,26 @@ export default function App() {
               </div>
             ))}
 
-            {Array.from({ length: (activeTab === 'adn' ? 1 : 3) - selectedMovies.length }).map((_, i) => (
+            {Array.from({ length: (activeTab === 'desglose' ? 1 : 3) - selectedMovies.length }).map((_, i) => (
               <div key={i} className="border-2 border-dashed border-slate-800/80 rounded-xl p-3 sm:p-4 flex items-center justify-center text-slate-600 text-xs font-medium h-16 sm:h-20">
-                + Agregar película
+                + Seleccionar película
               </div>
             ))}
           </div>
         </div>
 
         {/* Botón de Acción */}
-        {selectedMovies.length === (activeTab === 'adn' ? 1 : 3) && (
+        {selectedMovies.length === (activeTab === 'desglose' ? 1 : 3) && (
           <button
             onClick={() => runTool(false)}
             disabled={loading}
-            className="w-full py-3 sm:py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm sm:text-base rounded-xl transition-all shadow-lg hover:shadow-indigo-500/25 disabled:opacity-50"
+            className="w-full py-3.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:opacity-95 text-white font-bold text-sm sm:text-base rounded-xl transition-all shadow-lg hover:shadow-indigo-500/25 disabled:opacity-50 tracking-wide"
           >
-            {loading ? 'Mezclando en el laboratorio...' : '¡Ejecutar Experimento! 🚀'}
+            {loading
+              ? 'Procesando en el laboratorio...'
+              : activeTab === 'sintesis'
+              ? '🧪 Iniciar Síntesis 🚀'
+              : '🔬 Ejecutar Desglose 🚀'}
           </button>
         )}
 
@@ -374,13 +405,13 @@ export default function App() {
         {result && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-6 sm:space-y-8 shadow-2xl">
             
-            {/* RECOMENDACIÓN PRINCIPAL (EL CALDERO) */}
+            {/* RESULTADO SÍNTESIS */}
             {result.type === 'caldero' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                     <span className="px-2.5 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-[11px] sm:text-xs font-semibold">
-                      🧪 Recomendación Resultante
+                      🧪 Síntesis Resultante
                     </span>
                     {result.data.modoPais && (
                       <span className="px-2.5 py-1 bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 rounded-full text-[11px] sm:text-xs font-semibold">
@@ -389,12 +420,12 @@ export default function App() {
                     )}
                     {result.data.modoGemaOculta && (
                       <span className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full text-[11px] sm:text-xs font-semibold">
-                        💎 Gema Oculta
+                        💎 Cine Oculto
                       </span>
                     )}
                     {result.data.modoPesoTecnico && (
                       <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-full text-[11px] sm:text-xs font-semibold">
-                        🎬 Foco Técnico
+                        🎥 Sello de Autor
                       </span>
                     )}
                   </div>
@@ -404,7 +435,7 @@ export default function App() {
                     disabled={loading}
                     className="w-full sm:w-auto px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                   >
-                    {loading ? '⏳ Buscando...' : '🔄 Dame otro resultado'}
+                    {loading ? '⏳ Procesando...' : '🔄 Probar otra variante'}
                   </button>
                 </div>
 
@@ -448,7 +479,7 @@ export default function App() {
                 {result.data.argumentoIA && (
                   <div className="p-3.5 sm:p-4 bg-purple-950/40 border border-purple-500/30 rounded-xl space-y-1 shadow-inner mt-4">
                     <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
-                      🧠 Análisis Semántico de la IA (Llama 3.1)
+                      🧠 Dictamen de Síntesis (Llama 3.1)
                     </p>
                     <p className="text-xs text-purple-100/90 leading-relaxed italic">
                       "{result.data.argumentoIA}"
@@ -458,13 +489,13 @@ export default function App() {
               </div>
             )}
 
-            {/* ADN CINEMATOGRÁFICO */}
+            {/* RESULTADO DESGLOSE ESPECTRAL */}
             {result.type === 'adn' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                     <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-full text-[11px] sm:text-xs font-semibold inline-block">
-                      🧬 Componentes ADN de {result.data.pelicula}
+                      🔬 Desglose Espectral de {result.data.pelicula}
                     </span>
                     {result.data.modoPais && (
                       <span className="px-2.5 py-1 bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 rounded-full text-[11px] sm:text-xs font-semibold inline-block">
@@ -473,7 +504,7 @@ export default function App() {
                     )}
                     {result.data.modoPesoTecnico && (
                       <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded-full text-[11px] sm:text-xs font-semibold inline-block">
-                        🎬 Foco Técnico
+                        🎥 Sello de Autor
                       </span>
                     )}
                   </div>
@@ -483,14 +514,14 @@ export default function App() {
                     disabled={loading}
                     className="w-full sm:w-auto px-3 py-1.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                   >
-                    {loading ? '⏳ Analizando...' : '🔄 Dame otro resultado'}
+                    {loading ? '⏳ Analizando...' : '🔄 Analizar otras variantes'}
                   </button>
                 </div>
 
                 {result.data.argumentoADN && (
                   <div className="p-3.5 sm:p-4 bg-cyan-950/40 border border-cyan-500/30 rounded-xl space-y-1 shadow-inner">
                     <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
-                      🧬 Desglose Genético de la IA (Llama 3.1)
+                      🔬 Dictamen de Profundización Temática (Llama 3.1)
                     </p>
                     <p className="text-xs text-cyan-100/90 leading-relaxed italic">
                       "{result.data.argumentoADN}"
@@ -500,21 +531,21 @@ export default function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 items-start">
                   {result.data.adn.map((comp) => (
-                    <AdnCard key={comp.id} comp={comp} />
+                    <DesgloseCard key={comp.id} comp={comp} />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* CONEXIONES DE REPARTO */}
+            {/* RED DE CONEXIONES TÉCNICAS */}
             <div className="border-t border-slate-800 pt-5 sm:pt-6 space-y-4">
               <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                🕸️ Conexiones de Reparto y Equipo ({result.data.conexiones?.length || 0})
+                🕸️ Red de Conexiones del Equipo ({result.data.conexiones?.length || 0})
               </h4>
 
               {!result.data.conexiones || result.data.conexiones.length === 0 ? (
                 <p className="text-xs text-slate-500 italic">
-                  No se encontraron personas en común que hayan participado en 2 o más de estas películas.
+                  No se encontraron integrantes en común que hayan participado en 2 o más de estas obras.
                 </p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
