@@ -193,10 +193,10 @@ function obtenerConexionesReparto(peliculas) {
     .filter(p => p.peliculas.length >= 2);
 }
 
-// 🛡️ CAPA 1: BÚSQUEDA Y FILTRADO CON PAÍS PRIORITARIO DESDE EL INICIO
+// 🛡️ CAPA 1: BÚSQUEDA TÉCNICA ESPECIALIZADA Y FILTRADO DE DISONANCIA
 async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieIds, gemaOculta = false, pesoTecnico = false, pais = '') {
   console.log(`\n====================================================`);
-  console.log(`🛡️ --- CAPA 1: BÚSQUEDA ${gemaOculta ? '💎 [GEMA OCULTA]' : '🎬 [NORMAL]'} | FOCO TÉCNICO: ${pesoTecnico ? 'ACTIVADO 🎥' : 'DESACTIVADO'} | PAÍS: ${pais ? `🌐 [${pais}]` : 'TODOS'} ---`);
+  console.log(`🛡️ --- CAPA 1: BÚSQUEDA ${gemaOculta ? '💎 [GEMA OCULTA]' : '🎬 [NORMAL]'} | FOCO TÉCNICO: ${pesoTecnico ? 'ACTIVADO (DIRECTOR Y CREW PRIORITARIOS) 🎥' : 'DESACTIVADO'} | PAÍS: ${pais ? `🌐 [${pais}]` : 'TODOS'} ---`);
 
   const clasificacionesOrigen = peliculasOrigen.map(p => obtenerClasificacionEdad(p.release_dates));
   const esOrigenAdulto = clasificacionesOrigen.some(c => c === 'R' || c === 'NC-17');
@@ -213,27 +213,11 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     peliculasOrigen.flatMap(p => extraerKeywordsLimpias(p.keywords))
   );
 
-  // Ponderación de personas clave
-  const conteoPersonas = {};
-  peliculasOrigen.forEach(p => {
-    const directores = (p.credits?.crew || []).filter(c => c.job === 'Director');
-    const guionistas = (p.credits?.crew || []).filter(c => ['Writer', 'Screenplay'].includes(c.job));
-    const dfs = (p.credits?.crew || []).filter(c => c.job === 'Director of Photography');
-    const reparto = (p.credits?.cast || []).slice(0, 6);
-
-    [...directores, ...guionistas, ...dfs, ...reparto].forEach(persona => {
-      conteoPersonas[persona.id] = (conteoPersonas[persona.id] || 0) + 1;
-    });
-  });
-
-  const personasClaveIds = Object.keys(conteoPersonas)
-    .map(Number)
-    .sort((a, b) => conteoPersonas[b] - conteoPersonas[a]);
-
+  // 1. EXTRAER DIRECTORES Y PERSONAS CLAVE POR SEPARADO
   const directoresOrigenSet = new Set(peliculasOrigen.flatMap(p => (p.credits?.crew || []).filter(c => c.job === 'Director').map(c => c.id)));
   const guionistasOrigenSet = new Set(peliculasOrigen.flatMap(p => (p.credits?.crew || []).filter(c => ['Writer', 'Screenplay'].includes(c.job)).map(c => c.id)));
   const dfsOrigenSet = new Set(peliculasOrigen.flatMap(p => (p.credits?.crew || []).filter(c => c.job === 'Director of Photography').map(c => c.id)));
-  const repartoOrigenSet = new Set(peliculasOrigen.flatMap(p => (p.credits?.cast || []).slice(0, 8).map(c => c.id)));
+  const repartoOrigenSet = new Set(peliculasOrigen.flatMap(p => (p.credits?.cast || []).slice(0, 6).map(c => c.id)));
 
   const candidatosTecnicosMap = new Map();
   const candidatosEstandarMap = new Map();
@@ -255,16 +239,27 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
   } else {
     const peticionesBase = [];
 
-    // A. Foco técnico prioritario
-    if (pesoTecnico && personasClaveIds.length > 0) {
-      const topPersonasQuery = personasClaveIds.slice(0, 10).join('|');
-      const urlTecnica = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_people=${topPersonasQuery}${queryPais}&sort_by=popularity.desc&page=1`;
-      peticionesBase.push(fetch(urlTecnica).then(r => r.json()).then(res => {
+    // 🎥 A. BÚSQUEDA EXCLUSIVA POR DIRECTOR (Garantiza filmografías completas como la de Fincher)
+    if (pesoTecnico && directoresOrigenSet.size > 0) {
+      const dirQuery = [...directoresOrigenSet].join('|');
+      const urlDirectores = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_crew=${dirQuery}${queryPais}&sort_by=vote_average.desc&vote_count.gte=50`;
+      peticionesBase.push(fetch(urlDirectores).then(r => r.json()).then(res => {
         (res.results || []).forEach(cand => candidatosTecnicosMap.set(cand.id, cand));
       }));
     }
 
-    // B. Consultas por país desde el inicio si aplica
+    // 🎥 B. BÚSQUEDA POR REPARTO PRINCIPAL
+    if (pesoTecnico && repartoOrigenSet.size > 0) {
+      const castQuery = [...repartoOrigenSet].slice(0, 6).join('|');
+      const urlCast = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_cast=${castQuery}${queryPais}&sort_by=popularity.desc&page=1`;
+      peticionesBase.push(fetch(urlCast).then(r => r.json()).then(res => {
+        (res.results || []).forEach(cand => {
+          if (!candidatosTecnicosMap.has(cand.id)) candidatosTecnicosMap.set(cand.id, cand);
+        });
+      }));
+    }
+
+    // C. Búsqueda por País si aplica
     if (pais) {
       if (generosQuery) {
         const urlPaisGeneros = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_origin_country=${pais}&with_genres=${generosQuery}&sort_by=popularity.desc&page=1`;
@@ -274,7 +269,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       peticionesBase.push(fetch(urlDiscoverPais).then(r => r.json()));
     }
 
-    // C. Recomendaciones y Similares
+    // D. Recomendaciones y Similares
     for (const p of peliculasOrigen) {
       peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/recommendations?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
       peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/similar?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
@@ -293,7 +288,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     });
   }
 
-  // 2. UNIR CANDIDATOS
+  // 2. UNIR CANDIDATOS PRIORIZANDO LOS TÉCNICOS
   const mapaCandidatosBrutos = new Map();
 
   candidatosTecnicosMap.forEach((cand, id) => {
@@ -310,7 +305,6 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
 
   let candidatosRaw = Array.from(mapaCandidatosBrutos.values());
 
-  // PRE-FILTRADO POR PAÍS
   if (pais) {
     const candidatosConPais = candidatosRaw.filter(cand => {
       if (!cand.origin_country || cand.origin_country.length === 0) return true;
@@ -376,6 +370,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       }
     });
 
+    // 🎥 PUNTUACIÓN DE FOCO TÉCNICO
     if (pesoTecnico && cand.credits) {
       const directoresCand = (cand.credits.crew || []).filter(c => c.job === 'Director');
       const guionistasCand = (cand.credits.crew || []).filter(c => ['Writer', 'Screenplay'].includes(c.job));
@@ -394,6 +389,16 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       repartoCand.forEach(c => {
         if (repartoOrigenSet.has(c.id)) { score += 50; desgloses.push(`+50 pts 🎭 (Mismo Actor/Actriz: ${c.name})`); }
       });
+    }
+
+    // 🚫 PENALIZACIÓN POR DISONANCIA DE GÉNERO (Previene blockbusters fuera de tono)
+    const esInputSuspensoDrama = [...generosOrigenSet].some(g => [18, 80, 53, 9648].includes(g));
+    const esCandAccionAventura = generosCand.includes(28) || generosCand.includes(12);
+    const comparteSuspensoOCrimen = generosCand.includes(53) || generosCand.includes(80) || generosCand.includes(9648);
+
+    if (esInputSuspensoDrama && esCandAccionAventura && !comparteSuspensoOCrimen) {
+      score -= 100;
+      desgloses.push(`-100 pts 🚫 (Disonancia: Blockbuster de acción fuera de tono)`);
     }
 
     if (gemaOculta) {
