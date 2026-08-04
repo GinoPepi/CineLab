@@ -14,17 +14,14 @@ const OMDB_API_KEY = process.env.OMDB_API_KEY;
 app.use(cors());
 app.use(express.json());
 
-// Ruta raíz para comprobación de UptimeRobot y navegadores
 app.get('/', (req, res) => {
   res.status(200).send('🚀 CineLab Backend activo y respondiendo');
 });
 
-// Ruta de ping dedicada
 app.get('/api/ping', (req, res) => {
   res.status(200).send('pong');
 });
 
-// 🗺️ MAPA DE GÉNEROS DE TMDB
 const MAPA_GENEROS = {
   28: 'Acción', 12: 'Aventura', 16: 'Animación', 35: 'Comedia', 80: 'Crimen',
   99: 'Documental', 18: 'Drama', 10751: 'Familia', 14: 'Fantasía', 36: 'Historia',
@@ -32,7 +29,6 @@ const MAPA_GENEROS = {
   10770: 'Película de TV', 53: 'Suspenso / Thriller', 10752: 'Bélica', 37: 'Western'
 };
 
-// 🚫 LISTA NEGRA DE KEYWORDS GENÉRICAS ("STOP-KEYWORDS")
 const STOP_KEYWORDS = new Set([
   'based on novel or novella', 'based on novel', 'duringcreditsstinger', 'aftercreditsstinger',
   'independent film', 'murder', 'friendship', 'violence', 'father son relationship',
@@ -41,14 +37,12 @@ const STOP_KEYWORDS = new Set([
   'biography', 'cinema', 'movie', 'los angeles, california', 'new york city', 'death', 'relationship'
 ]);
 
-// 🎬 CONSULTA A OMDB PARA OBTENER NOTA REAL DE IMDB
 async function obtenerNotaIMDb(imdbId) {
   if (!imdbId) return null;
   try {
     const url = `https://www.omdbapi.com/?apikey=${OMDB_API_KEY}&i=${imdbId}`;
     const res = await fetch(url);
     const data = await res.json();
-
     if (data.Response === "True" && data.imdbRating && data.imdbRating !== "N/A") {
       return parseFloat(data.imdbRating);
     }
@@ -58,7 +52,6 @@ async function obtenerNotaIMDb(imdbId) {
   return null;
 }
 
-// 🔞 EXTRACTOR DE CLASIFICACIÓN DE EDAD (US CERTIFICATION)
 function obtenerClasificacionEdad(releaseDatesData) {
   if (!releaseDatesData?.results) return 'N/D';
   const usRelease = releaseDatesData.results.find(r => r.iso_3166_1 === 'US') || releaseDatesData.results[0];
@@ -67,7 +60,6 @@ function obtenerClasificacionEdad(releaseDatesData) {
   return cert || 'N/D';
 }
 
-// 🏷️ EXTRACTOR Y FILTRO DE KEYWORDS RELEVANTES
 function extraerKeywordsLimpias(keywordsData) {
   const listaRaw = keywordsData?.keywords || keywordsData?.results || [];
   return listaRaw
@@ -76,18 +68,12 @@ function extraerKeywordsLimpias(keywordsData) {
     .slice(0, 5);
 }
 
-// Detector inteligente de secuelas/sagas
 function esSecuelaOSaga(candidata, peliculasInput) {
   if (!candidata || !peliculasInput || peliculasInput.length === 0) return false;
-
   const stopWords = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del', 'y', 'e', 'o', 'a', 'en', 'con', 'por', 'para', 'the', 'of', 'and', 'in', 'on', 'at', 'to', 'is', 'part', 'parte', 'vol', 'chapter']);
 
   const normalizar = (str) =>
-    (str || '')
-      .toLowerCase()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9\s]/g, '')
-      .trim();
+    (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, '').trim();
 
   const extraerPalabrasClave = (str) =>
     normalizar(str).split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
@@ -101,7 +87,6 @@ function esSecuelaOSaga(candidata, peliculasInput) {
     if (candidata.belongs_to_collection?.id && input.belongs_to_collection?.id) {
       if (candidata.belongs_to_collection.id === input.belongs_to_collection.id) return true;
     }
-
     const inputTitle = normalizar(input.title);
     const inputOrig = normalizar(input.original_title);
     const kwInputTitle = extraerPalabrasClave(input.title);
@@ -115,10 +100,7 @@ function esSecuelaOSaga(candidata, peliculasInput) {
       return false;
     };
 
-    const coincideTextoDirecto = (a, b) => {
-      if (!a || !b) return false;
-      return a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a));
-    };
+    const coincideTextoDirecto = (a, b) => a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a));
 
     return (
       coincideTextoDirecto(candTitle, inputTitle) ||
@@ -129,7 +111,6 @@ function esSecuelaOSaga(candidata, peliculasInput) {
   });
 }
 
-// Extractor de conexiones de reparto
 function obtenerConexionesReparto(peliculas) {
   const mapaPersonas = {};
 
@@ -147,7 +128,8 @@ function obtenerConexionesReparto(peliculas) {
       'Director of Photography': { tipo: 'df', etiqueta: 'Dir. de Fotografía (DF)' },
       'Writer': { tipo: 'guion', etiqueta: 'Guionista' },
       'Screenplay': { tipo: 'guion', etiqueta: 'Guionista' },
-      'Producer': { tipo: 'produccion', etiqueta: 'Producción' }
+      'Producer': { tipo: 'produccion', etiqueta: 'Producción' },
+      'Executive Producer': { tipo: 'produccion', etiqueta: 'Producción Exec.' }
     };
 
     const equipoClave = (peli.credits.crew || [])
@@ -193,10 +175,10 @@ function obtenerConexionesReparto(peliculas) {
     .filter(p => p.peliculas.length >= 2);
 }
 
-// 🛡️ CAPA 1: BÚSQUEDA TÉCNICA ESPECIALIZADA Y FILTRADO DE DISONANCIA
-async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieIds, gemaOculta = false, pesoTecnico = false, pais = '') {
+// 🛡️ CAPA 1: FILTRADO DURO CON VETO ABSOLUTO DE EQUIPO Y REPARTO
+async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieIds, gemaOculta = false, pesoTecnico = false, focoReparto = false, pais = '') {
   console.log(`\n====================================================`);
-  console.log(`🛡️ --- CAPA 1: BÚSQUEDA ${gemaOculta ? '💎 [GEMA OCULTA]' : '🎬 [NORMAL]'} | FOCO TÉCNICO: ${pesoTecnico ? 'ACTIVADO (DIRECTOR Y CREW PRIORITARIOS) 🎥' : 'DESACTIVADO'} | PAÍS: ${pais ? `🌐 [${pais}]` : 'TODOS'} ---`);
+  console.log(`🛡️ --- CAPA 1: BÚSQUEDA ${gemaOculta ? '💎 [GEMA OCULTA]' : '🎬 [NORMAL]'} | TÉCNICO (CREW): ${pesoTecnico ? '🔒 VETO RÍGIDO 100%' : 'DESACTIVADO'} | REPARTO (CAST): ${focoReparto ? '🔒 VETO RÍGIDO 100%' : 'DESACTIVADO'} | PAÍS: ${pais ? `🌐 [${pais}]` : 'TODOS'} ---`);
 
   const clasificacionesOrigen = peliculasOrigen.map(p => obtenerClasificacionEdad(p.release_dates));
   const esOrigenAdulto = clasificacionesOrigen.some(c => c === 'R' || c === 'NC-17');
@@ -213,13 +195,18 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     peliculasOrigen.flatMap(p => extraerKeywordsLimpias(p.keywords))
   );
 
-  // 1. EXTRAER DIRECTORES Y PERSONAS CLAVE POR SEPARADO
-  const directoresOrigenSet = new Set(peliculasOrigen.flatMap(p => (p.credits?.crew || []).filter(c => c.job === 'Director').map(c => c.id)));
-  const guionistasOrigenSet = new Set(peliculasOrigen.flatMap(p => (p.credits?.crew || []).filter(c => ['Writer', 'Screenplay'].includes(c.job)).map(c => c.id)));
-  const dfsOrigenSet = new Set(peliculasOrigen.flatMap(p => (p.credits?.crew || []).filter(c => c.job === 'Director of Photography').map(c => c.id)));
-  const repartoOrigenSet = new Set(peliculasOrigen.flatMap(p => (p.credits?.cast || []).slice(0, 6).map(c => c.id)));
+  // 1. EXTRAER LISTAS DE EQUIPO (CREW) Y REPARTO (CAST)
+  const equipoOrigenIds = new Set(peliculasOrigen.flatMap(p => 
+    (p.credits?.crew || [])
+      .filter(c => ['Director', 'Writer', 'Screenplay', 'Producer', 'Executive Producer', 'Director of Photography'].includes(c.job))
+      .map(c => c.id)
+  ));
 
-  const candidatosTecnicosMap = new Map();
+  const repartoOrigenIds = new Set(peliculasOrigen.flatMap(p => 
+    (p.credits?.cast || []).slice(0, 10).map(c => c.id)
+  ));
+
+  const candidatosFiltradosMap = new Map();
   const candidatosEstandarMap = new Map();
   const queryPais = pais ? `&with_origin_country=${pais}` : '';
 
@@ -233,46 +220,40 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
 
     const paginaRandom = Math.floor(Math.random() * 3) + 1;
     const urlGema = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_genres=${gQuery}${queryPais}&sort_by=vote_average.desc&vote_count.gte=80&vote_count.lte=1500&popularity.lte=25&page=${paginaRandom}`;
-    
     const resGema = await fetch(urlGema).then(r => r.json());
     (resGema.results || []).forEach(cand => candidatosEstandarMap.set(cand.id, { ...cand, frecuenciasAparicion: 1 }));
   } else {
     const peticionesBase = [];
 
-    // 🎥 A. BÚSQUEDA EXCLUSIVA POR DIRECTOR (Garantiza filmografías completas como la de Fincher)
-    if (pesoTecnico && directoresOrigenSet.size > 0) {
-      const dirQuery = [...directoresOrigenSet].join('|');
-      const urlDirectores = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_crew=${dirQuery}${queryPais}&sort_by=vote_average.desc&vote_count.gte=50`;
-      peticionesBase.push(fetch(urlDirectores).then(r => r.json()).then(res => {
-        (res.results || []).forEach(cand => candidatosTecnicosMap.set(cand.id, cand));
+    // A. Búsqueda directa por EQUIPO TÉCNICO (Director, Guionista, Producción)
+    if (pesoTecnico && equipoOrigenIds.size > 0) {
+      const crewQuery = [...equipoOrigenIds].join('|');
+      const urlCrew = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_crew=${crewQuery}${queryPais}&sort_by=popularity.desc&page=1`;
+      peticionesBase.push(fetch(urlCrew).then(r => r.json()).then(res => {
+        (res.results || []).forEach(cand => candidatosFiltradosMap.set(cand.id, cand));
       }));
     }
 
-    // 🎥 B. BÚSQUEDA POR REPARTO PRINCIPAL
-    if (pesoTecnico && repartoOrigenSet.size > 0) {
-      const castQuery = [...repartoOrigenSet].slice(0, 6).join('|');
+    // B. Búsqueda directa por REPARTO (Actores/Actrices)
+    if (focoReparto && repartoOrigenIds.size > 0) {
+      const castQuery = [...repartoOrigenIds].join('|');
       const urlCast = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_cast=${castQuery}${queryPais}&sort_by=popularity.desc&page=1`;
       peticionesBase.push(fetch(urlCast).then(r => r.json()).then(res => {
-        (res.results || []).forEach(cand => {
-          if (!candidatosTecnicosMap.has(cand.id)) candidatosTecnicosMap.set(cand.id, cand);
-        });
+        (res.results || []).forEach(cand => candidatosFiltradosMap.set(cand.id, cand));
       }));
     }
 
-    // C. Búsqueda por País si aplica
-    if (pais) {
-      if (generosQuery) {
-        const urlPaisGeneros = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_origin_country=${pais}&with_genres=${generosQuery}&sort_by=popularity.desc&page=1`;
-        peticionesBase.push(fetch(urlPaisGeneros).then(r => r.json()));
+    // C. Búsqueda general solo si no se activaron los vetos o para complementar
+    if (!pesoTecnico && !focoReparto) {
+      for (const p of peliculasOrigen) {
+        peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/recommendations?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
+        peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/similar?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
       }
-      const urlDiscoverPais = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_origin_country=${pais}&sort_by=popularity.desc&page=1`;
-      peticionesBase.push(fetch(urlDiscoverPais).then(r => r.json()));
     }
 
-    // D. Recomendaciones y Similares
-    for (const p of peliculasOrigen) {
-      peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/recommendations?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
-      peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/similar?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
+    if (pais) {
+      const urlDiscoverPais = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_origin_country=${pais}&sort_by=popularity.desc&page=1`;
+      peticionesBase.push(fetch(urlDiscoverPais).then(r => r.json()));
     }
 
     const respuestas = await Promise.all(peticionesBase);
@@ -288,10 +269,10 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     });
   }
 
-  // 2. UNIR CANDIDATOS PRIORIZANDO LOS TÉCNICOS
+  // Unir candidatos
   const mapaCandidatosBrutos = new Map();
 
-  candidatosTecnicosMap.forEach((cand, id) => {
+  candidatosFiltradosMap.forEach((cand, id) => {
     mapaCandidatosBrutos.set(id, { ...cand, frecuenciasAparicion: 1 });
   });
 
@@ -305,18 +286,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
 
   let candidatosRaw = Array.from(mapaCandidatosBrutos.values());
 
-  if (pais) {
-    const candidatosConPais = candidatosRaw.filter(cand => {
-      if (!cand.origin_country || cand.origin_country.length === 0) return true;
-      return cand.origin_country.includes(pais);
-    });
-
-    if (candidatosConPais.length >= 5) {
-      candidatosRaw = candidatosConPais;
-    }
-  }
-
-  const promesasDetalles = candidatosRaw.slice(0, 45).map(cand =>
+  const promesasDetalles = candidatosRaw.slice(0, 50).map(cand =>
     fetch(`https://api.themoviedb.org/3/movie/${cand.id}?api_key=${API_KEY}&append_to_response=keywords,release_dates,credits&language=es-ES`).then(r => r.json())
   );
 
@@ -344,6 +314,23 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     if (generosCand.includes(16) && !generosOrigenSet.has(16)) continue;
     if (generosCand.includes(10751) && !generosOrigenSet.has(10751)) continue;
 
+    // 🔒 VETO RÍGIDO 1: FOCO TÉCNICO (EQUIPO DETRÁS DE CÁMARA)
+    if (pesoTecnico) {
+      const equipoCandIds = (cand.credits?.crew || [])
+        .filter(c => ['Director', 'Writer', 'Screenplay', 'Producer', 'Executive Producer', 'Director of Photography'].includes(c.job))
+        .map(c => c.id);
+
+      const tieneCoincidenciaEquipo = equipoCandIds.some(id => equipoOrigenIds.has(id));
+      if (!tieneCoincidenciaEquipo) continue; // DISCARD ABSOLUTO (100% GARANTIZADO)
+    }
+
+    // 🔒 VETO RÍGIDO 2: FOCO REPARTO (ACTORES/ACTRICES)
+    if (focoReparto) {
+      const repartoCandIds = (cand.credits?.cast || []).slice(0, 12).map(c => c.id);
+      const tieneCoincidenciaReparto = repartoCandIds.some(id => repartoOrigenIds.has(id));
+      if (!tieneCoincidenciaReparto) continue; // DISCARD ABSOLUTO (100% GARANTIZADO)
+    }
+
     let score = 0;
     const desgloses = [];
 
@@ -370,35 +357,20 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       }
     });
 
-    // 🎥 PUNTUACIÓN DE FOCO TÉCNICO
-    if (pesoTecnico && cand.credits) {
+    if (cand.credits) {
       const directoresCand = (cand.credits.crew || []).filter(c => c.job === 'Director');
       const guionistasCand = (cand.credits.crew || []).filter(c => ['Writer', 'Screenplay'].includes(c.job));
-      const dfsCand = (cand.credits.crew || []).filter(c => c.job === 'Director of Photography');
       const repartoCand = (cand.credits.cast || []).slice(0, 8);
 
       directoresCand.forEach(c => {
-        if (directoresOrigenSet.has(c.id)) { score += 120; desgloses.push(`+120 pts 🎬 (Mismo Director: ${c.name})`); }
+        if (equipoOrigenIds.has(c.id)) { score += 120; desgloses.push(`+120 pts 🎬 (Mismo Director: ${c.name})`); }
       });
       guionistasCand.forEach(c => {
-        if (guionistasOrigenSet.has(c.id)) { score += 90; desgloses.push(`+90 pts ✍️ (Mismo Guionista: ${c.name})`); }
-      });
-      dfsCand.forEach(c => {
-        if (dfsOrigenSet.has(c.id)) { score += 70; desgloses.push(`+70 pts 📷 (Mismo Dir. Fotografía: ${c.name})`); }
+        if (equipoOrigenIds.has(c.id)) { score += 90; desgloses.push(`+90 pts ✍️ (Mismo Guionista: ${c.name})`); }
       });
       repartoCand.forEach(c => {
-        if (repartoOrigenSet.has(c.id)) { score += 50; desgloses.push(`+50 pts 🎭 (Mismo Actor/Actriz: ${c.name})`); }
+        if (repartoOrigenIds.has(c.id)) { score += 50; desgloses.push(`+50 pts 🎭 (Mismo Actor/Actriz: ${c.name})`); }
       });
-    }
-
-    // 🚫 PENALIZACIÓN POR DISONANCIA DE GÉNERO (Previene blockbusters fuera de tono)
-    const esInputSuspensoDrama = [...generosOrigenSet].some(g => [18, 80, 53, 9648].includes(g));
-    const esCandAccionAventura = generosCand.includes(28) || generosCand.includes(12);
-    const comparteSuspensoOCrimen = generosCand.includes(53) || generosCand.includes(80) || generosCand.includes(9648);
-
-    if (esInputSuspensoDrama && esCandAccionAventura && !comparteSuspensoOCrimen) {
-      score -= 100;
-      desgloses.push(`-100 pts 🚫 (Disonancia: Blockbuster de acción fuera de tono)`);
     }
 
     if (gemaOculta) {
@@ -432,9 +404,9 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
   return topFinal;
 }
 
-// 🤖 CAPA 2: SÍNTESIS CON GROQ (15 OPCIONES)
+// 🤖 CAPA 2: SÍNTESIS CON GROQ
 async function analizarYRecomendarConIA(origen, candidatasCapa1) {
-  console.log("🤖 --- CAPA 2: EVALUACIÓN SEMÁNTICA CON GROQ (15 OPCIONES) ---");
+  console.log("🤖 --- CAPA 2: EVALUACIÓN SEMÁNTICA CON GROQ ---");
 
   const origenTexto = origen.map(p => {
     const cert = obtenerClasificacionEdad(p.release_dates);
@@ -482,7 +454,7 @@ Responde ÚNICAMENTE un objeto JSON con esta estructura exacta:
   }
 }
 
-// 🤖 CAPA 2: DESGLOSE ESPECTRAL Y PROFUNDIZACIÓN CON GROQ
+// 🤖 CAPA 2: DESCOMPOSICIÓN Y PROFUNDIZACIÓN CON GROQ
 async function seleccionarYAnalizarADNConIA(peliculaTarget, candidatasCapa1) {
   console.log(`🤖 Capa 2: Groq analizando profundización temática para "${peliculaTarget.title}"...`);
 
@@ -542,11 +514,11 @@ app.get('/api/buscar', async (req, res) => {
   }
 });
 
-// 🧪 RUTA SÍNTESIS (EL CALDERO)
+// 🧪 RUTA SÍNTESIS
 app.post('/api/caldero', async (req, res) => {
   console.log("\n🧪 --- NUEVA MEZCLA RECIBIDA EN SÍNTESIS ---");
   try {
-    const { movieIds, gemaOculta = false, pesoTecnico = false, pais = '', excludeIds = [] } = req.body;
+    const { movieIds, gemaOculta = false, pesoTecnico = false, focoReparto = false, pais = '', excludeIds = [] } = req.body;
 
     if (!movieIds || !Array.isArray(movieIds) || movieIds.length !== 3) {
       return res.status(400).json({ error: 'Debes enviar exactamente 3 IDs.' });
@@ -557,10 +529,10 @@ app.post('/api/caldero', async (req, res) => {
     );
     const peliculasElegidas = await Promise.all(peticiones);
 
-    const candidatosCapa1 = await ejecutarCapa1FiltradoYScoring(peliculasElegidas, excludeIds, movieIds, gemaOculta, pesoTecnico, pais);
+    const candidatosCapa1 = await ejecutarCapa1FiltradoYScoring(peliculasElegidas, excludeIds, movieIds, gemaOculta, pesoTecnico, focoReparto, pais);
 
     if (candidatosCapa1.length === 0) {
-      return res.status(404).json({ error: 'No encontramos recomendaciones para el país y filtros seleccionados.' });
+      return res.status(404).json({ error: 'No encontramos recomendaciones inéditas que coincidan con los filtros técnicos seleccionados.' });
     }
 
     const decisionIA = await analizarYRecomendarConIA(peliculasElegidas, candidatosCapa1);
@@ -579,6 +551,7 @@ app.post('/api/caldero', async (req, res) => {
       ingredientes: peliculasElegidas.map(p => p.title),
       modoGemaOculta: gemaOculta,
       modoPesoTecnico: pesoTecnico,
+      modoFocoReparto: focoReparto,
       modoPais: pais,
       argumentoIA: decisionIA.argumentoIA,
       resultado: {
@@ -601,15 +574,16 @@ app.post('/api/caldero', async (req, res) => {
   }
 });
 
-// 🔬 RUTA DESGLOSE ESPECTRAL
+// 🔬 RUTA DESCOMPOSICIÓN
 app.get('/api/adn', async (req, res) => {
-  console.log("\n🔬 --- SOLICITUD DE DESGLOSE ESPECTRAL ---");
+  console.log("\n🔬 --- SOLICITUD DE DESCOMPOSICIÓN ---");
   try {
-    const { movieId, excludeIds = '', pesoTecnico = 'false', pais = '' } = req.query;
+    const { movieId, excludeIds = '', pesoTecnico = 'false', focoReparto = 'false', pais = '' } = req.query;
     if (!movieId) return res.status(400).json({ error: 'Debes enviar un ID de película.' });
 
     const excludedList = excludeIds ? excludeIds.split(',').map(Number) : [];
     const esPesoTecnico = pesoTecnico === 'true';
+    const esFocoReparto = focoReparto === 'true';
 
     const resPeli = await fetch(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${API_KEY}&append_to_response=credits,keywords,release_dates&language=es-ES`);
     const peliculaOriginal = await resPeli.json();
@@ -618,10 +592,10 @@ app.get('/api/adn', async (req, res) => {
       return res.status(404).json({ error: 'No se encontró la película especificada.' });
     }
 
-    const candidatosCapa1 = await ejecutarCapa1FiltradoYScoring([peliculaOriginal], excludedList, [parseInt(movieId)], false, esPesoTecnico, pais);
+    const candidatosCapa1 = await ejecutarCapa1FiltradoYScoring([peliculaOriginal], excludedList, [parseInt(movieId)], false, esPesoTecnico, esFocoReparto, pais);
 
     if (candidatosCapa1.length < 3) {
-      return res.status(404).json({ error: 'No se encontraron suficientes componentes para este país.' });
+      return res.status(404).json({ error: 'No se encontraron suficientes componentes inéditos con los filtros aplicados.' });
     }
 
     const resultadoIA = await seleccionarYAnalizarADNConIA(peliculaOriginal, candidatosCapa1);
@@ -658,13 +632,14 @@ app.get('/api/adn', async (req, res) => {
       pelicula: peliculaOriginal.title,
       argumentoADN: resultadoIA.argumentoADN,
       modoPesoTecnico: esPesoTecnico,
+      modoFocoReparto: esFocoReparto,
       modoPais: pais,
       adn: componentesFormatted,
       conexiones: conexionesReparto
     });
 
   } catch (error) {
-    console.error('❌ Error en Desglose:', error);
+    console.error('❌ Error en Descomposición:', error);
     res.status(500).json({ error: 'Error al desglosar la película.' });
   }
 });

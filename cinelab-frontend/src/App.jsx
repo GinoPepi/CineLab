@@ -37,9 +37,14 @@ const EXPLICACIONES_FILTROS = {
     descripcion: 'Filtra películas poco conocidas fuera del circuito comercial que cuentan con excelentes valoraciones de la crítica (pocas votaciones pero notas muy altas).'
   },
   pesoTecnico: {
-    titulo: '🎥 Sello de Autor (Coincidencia Técnica)',
+    titulo: '🎥 Sello de Autor (Equipo Detrás de Cámara)',
     icono: '🎥',
-    descripcion: 'Otorga máxima prioridad a películas que compartan el mismo Director/a, Guionista, Director/a de Fotografía o reparto principal con las películas que seleccionaste.'
+    descripcion: 'Garantiza que el 100% de los resultados compartan al menos un integrante del equipo creativo (Director/a, Guionista o Producción) con las películas elegidas.'
+  },
+  focoReparto: {
+    titulo: '🎭 Foco Reparto (Coincidencia de Elenco)',
+    icono: '🎭',
+    descripcion: 'Garantiza que el 100% de los resultados compartan al menos un actor o actriz del reparto con las películas elegidas.'
   }
 };
 
@@ -114,31 +119,29 @@ function DesgloseCard({ comp }) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('sintesis'); // 'sintesis' o 'descomposicion'
+  const [activeTab, setActiveTab] = useState('sintesis');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedMovies, setSelectedMovies] = useState([]);
   const [gemaOculta, setGemaOculta] = useState(false);
   const [pesoTecnico, setPesoTecnico] = useState(false);
+  const [focoReparto, setFocoReparto] = useState(false);
   const [pais, setPais] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [excludedIds, setExcludedIds] = useState([]);
 
-  // Estados de Modales y Búsqueda Visual
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [modalExplicacion, setModalExplicacion] = useState(null);
   const modalInputRef = useRef(null);
 
-  // Auto-focus al abrir modal de búsqueda
   useEffect(() => {
     if (isSearchOpen && modalInputRef.current) {
       modalInputRef.current.focus();
     }
   }, [isSearchOpen]);
 
-  // Búsqueda en vivo
   useEffect(() => {
     if (searchQuery.trim().length < 2) {
       setSearchResults([]);
@@ -158,7 +161,6 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Manejar información de primera vez
   const manejarExplicacionPrimerUso = (claveFiltro) => {
     const yaVisto = localStorage.getItem(`cinelab_seen_${claveFiltro}`);
     if (!yaVisto) {
@@ -169,25 +171,25 @@ export default function App() {
 
   const handlePaisChange = (nuevoPais) => {
     setPais(nuevoPais);
-    if (nuevoPais !== '') {
-      manejarExplicacionPrimerUso('pais');
-    }
+    if (nuevoPais !== '') manejarExplicacionPrimerUso('pais');
   };
 
   const handleGemaChange = (e) => {
     const checked = e.target.checked;
     setGemaOculta(checked);
-    if (checked) {
-      manejarExplicacionPrimerUso('gemaOculta');
-    }
+    if (checked) manejarExplicacionPrimerUso('gemaOculta');
   };
 
   const handleTecnicoChange = (e) => {
     const checked = e.target.checked;
     setPesoTecnico(checked);
-    if (checked) {
-      manejarExplicacionPrimerUso('pesoTecnico');
-    }
+    if (checked) manejarExplicacionPrimerUso('pesoTecnico');
+  };
+
+  const handleRepartoChange = (e) => {
+    const checked = e.target.checked;
+    setFocoReparto(checked);
+    if (checked) manejarExplicacionPrimerUso('focoReparto');
   };
 
   const addMovie = (movie) => {
@@ -241,7 +243,7 @@ export default function App() {
         const res = await fetch(`${BACKEND_URL}/caldero`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ movieIds: ids, gemaOculta, pesoTecnico, pais, excludeIds: currentExcluded }),
+          body: JSON.stringify({ movieIds: ids, gemaOculta, pesoTecnico, focoReparto, pais, excludeIds: currentExcluded }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
@@ -249,7 +251,7 @@ export default function App() {
       } else if (activeTab === 'descomposicion') {
         const id = selectedMovies[0].id;
         const excludeQuery = currentExcluded.length > 0 ? `&excludeIds=${currentExcluded.join(',')}` : '';
-        const res = await fetch(`${BACKEND_URL}/adn?movieId=${id}&pesoTecnico=${pesoTecnico}&pais=${pais}${excludeQuery}`);
+        const res = await fetch(`${BACKEND_URL}/adn?movieId=${id}&pesoTecnico=${pesoTecnico}&focoReparto=${focoReparto}&pais=${pais}${excludeQuery}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         setResult({ type: 'adn', data });
@@ -278,7 +280,7 @@ export default function App() {
           </p>
         </header>
 
-        {/* Pestañas de Experimentos */}
+        {/* Pestañas */}
         <div className="space-y-3">
           <div className="flex justify-center gap-1.5 sm:gap-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 max-w-lg mx-auto">
             <button
@@ -299,7 +301,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Banner explicativo */}
           <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-3 text-center max-w-lg mx-auto">
             {activeTab === 'sintesis' ? (
               <p className="text-xs text-slate-300">
@@ -356,7 +357,7 @@ export default function App() {
                 </label>
               )}
 
-              {/* Filtro Sello de Autor */}
+              {/* Filtro Sello de Autor (Crew) */}
               <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-purple-400 hover:text-purple-300 transition-all select-none">
                 <input
                   type="checkbox"
@@ -366,10 +367,21 @@ export default function App() {
                 />
                 🎥 Sello de Autor
               </label>
+
+              {/* Filtro Foco Reparto (Cast) */}
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-cyan-400 hover:text-cyan-300 transition-all select-none">
+                <input
+                  type="checkbox"
+                  checked={focoReparto}
+                  onChange={handleRepartoChange}
+                  className="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-cyan-500/20"
+                />
+                🎭 Foco Reparto
+              </label>
             </div>
           </div>
 
-          {/* Slots de Películas Interactivos */}
+          {/* Slots de Películas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             {selectedMovies.map((movie) => (
               <div key={movie.id} className="relative bg-slate-900 border border-slate-800 rounded-xl p-2.5 sm:p-3 flex items-center gap-3 shadow-md">
@@ -391,7 +403,6 @@ export default function App() {
               </div>
             ))}
 
-            {/* Casillas Vacías AHORA HABILITADAS Y CLICKABLES */}
             {Array.from({ length: (activeTab === 'descomposicion' ? 1 : 3) - selectedMovies.length }).map((_, i) => (
               <button
                 key={i}
@@ -451,6 +462,11 @@ export default function App() {
                     {result.data.modoPesoTecnico && (
                       <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-full text-[11px] sm:text-xs font-semibold">
                         🎥 Sello de Autor
+                      </span>
+                    )}
+                    {result.data.modoFocoReparto && (
+                      <span className="px-2.5 py-1 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-full text-[11px] sm:text-xs font-semibold">
+                        🎭 Foco Reparto
                       </span>
                     )}
                   </div>
@@ -530,6 +546,11 @@ export default function App() {
                     {result.data.modoPesoTecnico && (
                       <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded-full text-[11px] sm:text-xs font-semibold inline-block">
                         🎥 Sello de Autor
+                      </span>
+                    )}
+                    {result.data.modoFocoReparto && (
+                      <span className="px-2.5 py-1 bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 rounded-full text-[11px] sm:text-xs font-semibold inline-block">
+                        🎭 Foco Reparto
                       </span>
                     )}
                   </div>
@@ -617,7 +638,7 @@ export default function App() {
 
       </div>
 
-      {/* 🔍 MODAL EMERGENTE DE BÚSQUEDA PANTALLA COMPLETA */}
+      {/* 🔍 MODAL DE BÚSQUEDA */}
       {isSearchOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-4 sm:p-6 space-y-4 shadow-2xl mt-4 sm:mt-12">
@@ -674,7 +695,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 💡 MODAL DE EXPLICACIÓN AL ACTIVAR FILTROS POR PRIMERA VEZ */}
+      {/* 💡 MODAL EXPLICATIVO AL ACTIVAR FILTROS POR PRIMERA VEZ */}
       {modalExplicacion && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-indigo-500/30 max-w-md w-full rounded-2xl p-5 space-y-4 shadow-2xl text-center">
