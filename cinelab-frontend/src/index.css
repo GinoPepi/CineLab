@@ -1,1 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+
+@theme {
+  /* Tipografías del Brief de Arte */
+  --font-display: "Cinzel", serif;
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Paleta The Projectionist's Booth */
+  --color-obscura: #090A0C;
+  --color-celluloid: #111318;
+  --color-film: #222630;
+  --color-crimson: #E50914;
+  --color-halogen: #F59E0B;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-obscura);
+    color: #F3F4F6;
+  }
+}
+
+/* CAPA DE GRANO DE PELÍCULA ANALÓGICO (FILM GRAIN) */
+.film-grain {
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48ZmlsdGVyIGlkPSJub2lzZSI+PGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9IjEuNSIgbnVtT2N0YXZlcz0iMyIgc3RpdGNoVGlsZXM9InN0aXRjaCIvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbHRlcj0idXJsKCNub2lzZSkiLz48L3N2Zz4=");
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0.08; /* Calibración sutil */
+  mix-blend-mode: screen;
+  animation: grain 8s steps(10) infinite;
+}
+
+@keyframes grain {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-2%, -3%); }
+  20% { transform: translate(-4%, 2%); }
+  30% { transform: translate(2%, -4%); }
+  40% { transform: translate(-2%, 4%); }
+  50% { transform: translate(-4%, 2%); }
+  60% { transform: translate(4%, 0%); }
+  70% { transform: translate(0%, 4%); }
+  80% { transform: translate(1%, 4%); }
+  90% { transform: translate(-3%, 2%); }
+}
