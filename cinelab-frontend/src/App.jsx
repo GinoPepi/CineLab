@@ -29,20 +29,20 @@ const EXPLICACIONES_FILTROS = {
   pais: {
     titulo: '🌐 Filtro por País de Origen',
     icono: '🌐',
-    descripcion: 'Restringe el análisis para que el motor busque únicamente películas producidas o financiadas en el país seleccionado. Útil si querés explorar cinematografía local o regional.'
+    descripcion: 'Restringe el análisis para que el motor busque únicamente películas producidas o financiadas en el país seleccionado.'
   },
   gemaOculta: {
     titulo: '💎 Cine Oculto (Joyas de Culto)',
     icono: '💎',
-    descripcion: 'Filtra películas poco conocidas fuera del circuito comercial que cuentan con excelentes valoraciones de la crítica (pocas votaciones pero notas muy altas).'
+    descripcion: 'Filtra películas poco conocidas fuera del circuito comercial que cuentan con excelentes valoraciones de la crítica.'
   },
   pesoTecnico: {
-    titulo: '🎥 Sello de Autor (Equipo Detrás de Cámara)',
+    titulo: '🎥 Sello de Autor (Equipo Creativo)',
     icono: '🎥',
-    descripcion: 'Garantiza que el 100% de los resultados compartan al menos un integrante del equipo creativo (Director/a, Guionista o Producción) con las películas elegidas.'
+    descripcion: 'Garantiza que el 100% de los resultados compartan al menos un integrante del equipo (Director/a, Guionista o Producción) con las películas elegidas.'
   },
   focoReparto: {
-    titulo: '🎭 Foco Reparto (Coincidencia de Elenco)',
+    titulo: '🎭 Foco Reparto (Elenco)',
     icono: '🎭',
     descripcion: 'Garantiza que el 100% de los resultados compartan al menos un actor o actriz del reparto con las películas elegidas.'
   }
@@ -53,61 +53,54 @@ function DesgloseCard({ comp }) {
   const esLargo = comp.sinopsis && comp.sinopsis.length > 100;
 
   return (
-    <div className="bg-slate-950 border border-slate-800 p-3 sm:p-3.5 rounded-xl flex flex-row md:flex-col gap-3 sm:gap-3.5 items-start h-full transition-all">
-      {comp.poster ? (
-        <img
-          src={comp.poster}
-          alt={comp.titulo}
-          className="w-24 sm:w-28 md:w-full aspect-[2/3] object-cover rounded-lg shadow-md flex-shrink-0"
-        />
-      ) : (
-        <div className="w-24 sm:w-28 md:w-full aspect-[2/3] bg-slate-900 rounded-lg flex items-center justify-center text-xs flex-shrink-0">
-          🎬
-        </div>
-      )}
-
-      <div className="flex-1 min-w-0 space-y-2">
-        <h4 className="font-bold text-xs sm:text-sm text-slate-100 leading-snug">{comp.titulo}</h4>
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          {comp.puntuacion && (
-            <span className="text-[10px] sm:text-[11px] font-semibold text-amber-300 bg-amber-500/10 px-1.5 sm:px-2 py-0.5 rounded border border-amber-500/20">
-              ⭐ {comp.origenPuntuacion || 'IMDb'}: {comp.puntuacion.toFixed(1)}
-            </span>
-          )}
-          {comp.clasificacionEdad && comp.clasificacionEdad !== 'N/D' && (
-            <span className="text-[10px] sm:text-[11px] font-semibold text-rose-300 bg-rose-500/10 px-1.5 sm:px-2 py-0.5 rounded border border-rose-500/20">
-              🔞 {comp.clasificacionEdad}
-            </span>
-          )}
-        </div>
-
-        {comp.keywords && comp.keywords.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-0.5">
-            {comp.keywords.slice(0, 3).map((kw, idx) => (
-              <span
-                key={idx}
-                className="text-[9px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded border border-slate-800 truncate max-w-[110px]"
-              >
-                🏷️ {kw}
-              </span>
-            ))}
+    <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl flex flex-col justify-between h-full">
+      <div className="space-y-3">
+        {comp.poster ? (
+          <img
+            src={comp.poster}
+            alt={comp.titulo}
+            className="w-full aspect-[2/3] object-cover rounded-lg shadow-md"
+          />
+        ) : (
+          <div className="w-full aspect-[2/3] bg-slate-900 rounded-lg flex items-center justify-center text-xs">
+            🎬
           </div>
         )}
 
-        <div className="pt-0.5">
-          <p
-            className={`text-xs text-slate-300 leading-relaxed transition-all duration-300 ${
-              expanded ? '' : 'line-clamp-3'
-            }`}
-          >
+        <div className="space-y-1.5">
+          <h4 className="font-bold text-sm text-slate-100 leading-snug">{comp.titulo}</h4>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {comp.puntuacion && (
+              <span className="text-[11px] font-semibold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                ⭐ {comp.origenPuntuacion || 'IMDb'}: {comp.puntuacion.toFixed(1)}
+              </span>
+            )}
+            {comp.clasificacionEdad && comp.clasificacionEdad !== 'N/D' && (
+              <span className="text-[11px] font-semibold text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                🔞 {comp.clasificacionEdad}
+              </span>
+            )}
+          </div>
+
+          {comp.keywords && comp.keywords.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {comp.keywords.slice(0, 3).map((kw, idx) => (
+                <span key={idx} className="text-[9px] bg-slate-900 text-slate-400 px-1.5 py-0.5 rounded border border-slate-800 truncate max-w-[110px]">
+                  🏷️ {kw}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <p className={`text-xs text-slate-300 leading-relaxed pt-1 ${expanded ? '' : 'line-clamp-3'}`}>
             {comp.sinopsis || 'Sin descripción disponible.'}
           </p>
 
           {esLargo && (
             <button
               onClick={() => setExpanded(!expanded)}
-              className="mt-1 text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors focus:outline-none flex items-center gap-1"
+              className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
             >
               {expanded ? '▲ Mostrar menos' : '▼ Leer más'}
             </button>
@@ -161,35 +154,20 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const cambiarTab = (nuevaTab) => {
+    setActiveTab(nuevaTab);
+    setSelectedMovies([]);
+    setResult(null);
+    setError(null);
+    setExcludedIds([]);
+  };
+
   const manejarExplicacionPrimerUso = (claveFiltro) => {
     const yaVisto = localStorage.getItem(`cinelab_seen_${claveFiltro}`);
     if (!yaVisto) {
       setModalExplicacion(EXPLICACIONES_FILTROS[claveFiltro]);
       localStorage.setItem(`cinelab_seen_${claveFiltro}`, 'true');
     }
-  };
-
-  const handlePaisChange = (nuevoPais) => {
-    setPais(nuevoPais);
-    if (nuevoPais !== '') manejarExplicacionPrimerUso('pais');
-  };
-
-  const handleGemaChange = (e) => {
-    const checked = e.target.checked;
-    setGemaOculta(checked);
-    if (checked) manejarExplicacionPrimerUso('gemaOculta');
-  };
-
-  const handleTecnicoChange = (e) => {
-    const checked = e.target.checked;
-    setPesoTecnico(checked);
-    if (checked) manejarExplicacionPrimerUso('pesoTecnico');
-  };
-
-  const handleRepartoChange = (e) => {
-    const checked = e.target.checked;
-    setFocoReparto(checked);
-    if (checked) manejarExplicacionPrimerUso('focoReparto');
   };
 
   const addMovie = (movie) => {
@@ -200,8 +178,6 @@ export default function App() {
       setResult(null);
       setError(null);
       setExcludedIds([]);
-      setSearchQuery('');
-      setSearchResults([]);
       setIsSearchOpen(false);
       return;
     }
@@ -263,6 +239,8 @@ export default function App() {
     }
   };
 
+  const maxSlots = activeTab === 'descomposicion' ? 1 : 3;
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-3 sm:p-6 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
@@ -280,11 +258,11 @@ export default function App() {
           </p>
         </header>
 
-        {/* Pestañas */}
+        {/* Pestañas de Navegación Únicas */}
         <div className="space-y-3">
           <div className="flex justify-center gap-1.5 sm:gap-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 max-w-lg mx-auto">
             <button
-              onClick={() => { setActiveTab('sintesis'); setSelectedMovies([]); setResult(null); setError(null); setExcludedIds([]); }}
+              onClick={() => cambiarTab('sintesis')}
               className={`flex-1 py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'sintesis' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -292,7 +270,7 @@ export default function App() {
               🧪 Síntesis (3→1)
             </button>
             <button
-              onClick={() => { setActiveTab('descomposicion'); setSelectedMovies([]); setResult(null); setError(null); setExcludedIds([]); }}
+              onClick={() => cambiarTab('descomposicion')}
               className={`flex-1 py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'descomposicion' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -314,11 +292,11 @@ export default function App() {
           </div>
         </div>
 
-        {/* Muestra de películas seleccionadas y filtros */}
+        {/* Sección de Selección de Películas */}
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/50 pb-2 sm:border-none sm:pb-0">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Películas en Mesa ({selectedMovies.length}/{activeTab === 'descomposicion' ? 1 : 3})
+              Películas en Mesa ({selectedMovies.length}/{maxSlots})
             </h2>
 
             <div className="flex items-center justify-between sm:justify-end gap-2.5 flex-wrap">
@@ -331,10 +309,12 @@ export default function App() {
                 </button>
               )}
 
-              {/* Selector de País */}
               <select
                 value={pais}
-                onChange={(e) => handlePaisChange(e.target.value)}
+                onChange={(e) => {
+                  setPais(e.target.value);
+                  if (e.target.value) manejarExplicacionPrimerUso('pais');
+                }}
                 className="bg-slate-900 border border-slate-800 text-slate-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
               >
                 {PAISES.map((p) => (
@@ -344,36 +324,42 @@ export default function App() {
                 ))}
               </select>
 
-              {/* Filtro Cine Oculto */}
               {activeTab === 'sintesis' && (
                 <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-amber-400 hover:text-amber-300 transition-all select-none">
                   <input
                     type="checkbox"
                     checked={gemaOculta}
-                    onChange={handleGemaChange}
+                    onChange={(e) => {
+                      setGemaOculta(e.target.checked);
+                      if (e.target.checked) manejarExplicacionPrimerUso('gemaOculta');
+                    }}
                     className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-amber-500/20"
                   />
                   💎 Cine Oculto
                 </label>
               )}
 
-              {/* Filtro Sello de Autor (Crew) */}
               <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-purple-400 hover:text-purple-300 transition-all select-none">
                 <input
                   type="checkbox"
                   checked={pesoTecnico}
-                  onChange={handleTecnicoChange}
+                  onChange={(e) => {
+                    setPesoTecnico(e.target.checked);
+                    if (e.target.checked) manejarExplicacionPrimerUso('pesoTecnico');
+                  }}
                   className="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-purple-500/20"
                 />
                 🎥 Sello de Autor
               </label>
 
-              {/* Filtro Foco Reparto (Cast) */}
               <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-cyan-400 hover:text-cyan-300 transition-all select-none">
                 <input
                   type="checkbox"
                   checked={focoReparto}
-                  onChange={handleRepartoChange}
+                  onChange={(e) => {
+                    setFocoReparto(e.target.checked);
+                    if (e.target.checked) manejarExplicacionPrimerUso('focoReparto');
+                  }}
                   className="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-cyan-500/20"
                 />
                 🎭 Foco Reparto
@@ -381,7 +367,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Slots de Películas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             {selectedMovies.map((movie) => (
               <div key={movie.id} className="relative bg-slate-900 border border-slate-800 rounded-xl p-2.5 sm:p-3 flex items-center gap-3 shadow-md">
@@ -403,7 +388,7 @@ export default function App() {
               </div>
             ))}
 
-            {Array.from({ length: (activeTab === 'descomposicion' ? 1 : 3) - selectedMovies.length }).map((_, i) => (
+            {Array.from({ length: maxSlots - selectedMovies.length }).map((_, i) => (
               <button
                 key={i}
                 onClick={() => setIsSearchOpen(true)}
@@ -415,8 +400,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Botón de Acción */}
-        {selectedMovies.length === (activeTab === 'descomposicion' ? 1 : 3) && (
+        {/* Botón de Ejecución */}
+        {selectedMovies.length === maxSlots && (
           <button
             onClick={() => runTool(false)}
             disabled={loading}
@@ -430,18 +415,16 @@ export default function App() {
           </button>
         )}
 
-        {/* Mensajes de Error */}
         {error && (
           <div className="p-3.5 bg-red-950/50 border border-red-800/50 text-red-300 rounded-xl text-xs sm:text-sm text-center">
             {error}
           </div>
         )}
 
-        {/* Panel de Resultados */}
+        {/* Panel Unificado de Resultados */}
         {result && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-6 sm:space-y-8 shadow-2xl">
             
-            {/* RESULTADO SÍNTESIS */}
             {result.type === 'caldero' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -530,7 +513,6 @@ export default function App() {
               </div>
             )}
 
-            {/* RESULTADO DESCOMPOSICIÓN */}
             {result.type === 'adn' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -575,7 +557,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 items-start">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 items-stretch">
                   {result.data.adn.map((comp) => (
                     <DesgloseCard key={comp.id} comp={comp} />
                   ))}
@@ -583,7 +565,7 @@ export default function App() {
               </div>
             )}
 
-            {/* RED DE CONEXIONES TÉCNICAS */}
+            {/* Red de Conexiones */}
             <div className="border-t border-slate-800 pt-5 sm:pt-6 space-y-4">
               <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
                 🕸️ Red de Conexiones del Equipo ({result.data.conexiones?.length || 0})
@@ -638,7 +620,7 @@ export default function App() {
 
       </div>
 
-      {/* 🔍 MODAL DE BÚSQUEDA */}
+      {/* Modal de Búsqueda */}
       {isSearchOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-4 sm:p-6 space-y-4 shadow-2xl mt-4 sm:mt-12">
@@ -695,7 +677,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 💡 MODAL EXPLICATIVO AL ACTIVAR FILTROS POR PRIMERA VEZ */}
+      {/* Modal Explicativo */}
       {modalExplicacion && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-indigo-500/30 max-w-md w-full rounded-2xl p-5 space-y-4 shadow-2xl text-center">
