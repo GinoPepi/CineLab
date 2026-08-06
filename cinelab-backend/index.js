@@ -175,10 +175,33 @@ function obtenerConexionesReparto(peliculas) {
     .filter(p => p.peliculas.length >= 2);
 }
 
-// 🛡️ CAPA 1: FILTRADO DURO CON VETO ABSOLUTO DE EQUIPO Y REPARTO
+// 🛡️ CAPA 1: BÚSQUEDA Y SCORING CON ANÁLISIS DE DISPERSIÓN TEMPORAL
 async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieIds, gemaOculta = false, pesoTecnico = false, focoReparto = false, pais = '') {
   console.log(`\n====================================================`);
-  console.log(`🛡️ --- CAPA 1: BÚSQUEDA ${gemaOculta ? '💎 [GEMA OCULTA]' : '🎬 [NORMAL]'} | TÉCNICO (CREW): ${pesoTecnico ? '🔒 VETO RÍGIDO 100%' : 'DESACTIVADO'} | REPARTO (CAST): ${focoReparto ? '🔒 VETO RÍGIDO 100%' : 'DESACTIVADO'} | PAÍS: ${pais ? `🌐 [${pais}]` : 'TODOS'} ---`);
+  console.log(`🛡️ --- CAPA 1: BÚSQUEDA ${gemaOculta ? '💎 [GEMA OCULTA]' : '🎬 [NORMAL]'} | TÉCNICO: ${pesoTecnico ? 'ACTIVADO' : 'NO'} | REPARTO: ${focoReparto ? 'ACTIVADO' : 'NO'} | PAÍS: ${pais ? `🌐 [${pais}]` : 'TODOS'} ---`);
+
+  // 1. ANÁLISIS DE DISPERSIÓN TEMPORAL INTELIGENTE
+  const aniosOrigen = peliculasOrigen
+    .map(p => p.release_date ? parseInt(p.release_date.split('-')[0]) : null)
+    .filter(Boolean);
+
+  let esClusterApretado = false;
+  let anioPromedioCluster = null;
+
+  if (aniosOrigen.length > 0) {
+    const minAnio = Math.min(...aniosOrigen);
+    const maxAnio = Math.max(...aniosOrigen);
+    const dispersion = maxAnio - minAnio;
+
+    // Solo si el rango entre la película más vieja y más nueva es <= 8 años, consideramos que hay una "época unificada"
+    if (dispersion <= 8) {
+      esClusterApretado = true;
+      anioPromedioCluster = Math.round(aniosOrigen.reduce((a, b) => a + b, 0) / aniosOrigen.length);
+      console.log(`📅 Época unificada detectada (~${anioPromedioCluster}) con dispersión baja (${dispersion} años).`);
+    } else {
+      console.log(`📅 Épocas diversas detectadas (Dispersión de ${dispersion} años: de ${minAnio} a ${maxAnio}). Se evaluará coincidencia por proximidad a cada obra.`);
+    }
+  }
 
   const clasificacionesOrigen = peliculasOrigen.map(p => obtenerClasificacionEdad(p.release_dates));
   const esOrigenAdulto = clasificacionesOrigen.some(c => c === 'R' || c === 'NC-17');
@@ -195,7 +218,6 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     peliculasOrigen.flatMap(p => extraerKeywordsLimpias(p.keywords))
   );
 
-  // 1. EXTRAER LISTAS DE EQUIPO (CREW) Y REPARTO (CAST)
   const equipoOrigenIds = new Set(peliculasOrigen.flatMap(p => 
     (p.credits?.crew || [])
       .filter(c => ['Director', 'Writer', 'Screenplay', 'Producer', 'Executive Producer', 'Director of Photography'].includes(c.job))
@@ -225,7 +247,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
   } else {
     const peticionesBase = [];
 
-    // A. Búsqueda directa por EQUIPO TÉCNICO (Director, Guionista, Producción)
+    // A. Búsqueda por EQUIPO TÉCNICO
     if (pesoTecnico && equipoOrigenIds.size > 0) {
       const crewQuery = [...equipoOrigenIds].join('|');
       const urlCrew = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_crew=${crewQuery}${queryPais}&sort_by=popularity.desc&page=1`;
@@ -234,7 +256,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       }));
     }
 
-    // B. Búsqueda directa por REPARTO (Actores/Actrices)
+    // B. Búsqueda por REPARTO
     if (focoReparto && repartoOrigenIds.size > 0) {
       const castQuery = [...repartoOrigenIds].join('|');
       const urlCast = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_cast=${castQuery}${queryPais}&sort_by=popularity.desc&page=1`;
@@ -243,7 +265,15 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       }));
     }
 
-    // C. Búsqueda general solo si no se activaron los vetos o para complementar
+    // C. BÚSQUEDA DEDICADA SI HAY ÉPOCA UNIFICADA (CLUSTER APRETADO)
+    if (esClusterApretado && anioPromedioCluster && !pesoTecnico && !focoReparto) {
+      const minAnio = anioPromedioCluster - 4;
+      const maxAnio = anioPromedioCluster + 4;
+      const urlEpoca = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=es-ES&with_genres=${generosQuery}&primary_release_date.gte=${minAnio}-01-01&primary_release_date.lte=${maxAnio}-12-31&sort_by=vote_average.desc&vote_count.gte=150${queryPais}`;
+      peticionesBase.push(fetch(urlEpoca).then(r => r.json()));
+    }
+
+    // D. Búsqueda general por recomendaciones y similares
     if (!pesoTecnico && !focoReparto) {
       for (const p of peliculasOrigen) {
         peticionesBase.push(fetch(`https://api.themoviedb.org/3/movie/${p.id}/recommendations?api_key=${API_KEY}&language=es-ES`).then(r => r.json()));
@@ -300,6 +330,11 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     if (excludeIds.includes(cand.id)) continue;
     if (esSecuelaOSaga(cand, peliculasOrigen)) continue;
 
+    // VETO DE CALIDAD MÍNIMA: Descarta películas con nota baja (< 5.8)
+    if (!gemaOculta && cand.vote_count >= 50 && cand.vote_average < 5.8) {
+      continue;
+    }
+
     if (pais) {
       const paisesOrigenCand = cand.origin_country || [];
       const paisesProducCand = (cand.production_countries || []).map(pc => pc.iso_3166_1);
@@ -314,26 +349,50 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
     if (generosCand.includes(16) && !generosOrigenSet.has(16)) continue;
     if (generosCand.includes(10751) && !generosOrigenSet.has(10751)) continue;
 
-    // 🔒 VETO RÍGIDO 1: FOCO TÉCNICO (EQUIPO DETRÁS DE CÁMARA)
     if (pesoTecnico) {
       const equipoCandIds = (cand.credits?.crew || [])
         .filter(c => ['Director', 'Writer', 'Screenplay', 'Producer', 'Executive Producer', 'Director of Photography'].includes(c.job))
         .map(c => c.id);
 
       const tieneCoincidenciaEquipo = equipoCandIds.some(id => equipoOrigenIds.has(id));
-      if (!tieneCoincidenciaEquipo) continue; // DISCARD ABSOLUTO (100% GARANTIZADO)
+      if (!tieneCoincidenciaEquipo) continue;
     }
 
-    // 🔒 VETO RÍGIDO 2: FOCO REPARTO (ACTORES/ACTRICES)
     if (focoReparto) {
       const repartoCandIds = (cand.credits?.cast || []).slice(0, 12).map(c => c.id);
       const tieneCoincidenciaReparto = repartoCandIds.some(id => repartoOrigenIds.has(id));
-      if (!tieneCoincidenciaReparto) continue; // DISCARD ABSOLUTO (100% GARANTIZADO)
+      if (!tieneCoincidenciaReparto) continue;
     }
 
     let score = 0;
     const desgloses = [];
 
+    // 📅 SCORING TEMPORAL DINÁMICO
+    if (cand.release_date) {
+      const anioCand = parseInt(cand.release_date.split('-')[0]);
+      if (!isNaN(anioCand)) {
+        if (esClusterApretado && anioPromedioCluster) {
+          // Caso A: El usuario eligió películas de la misma época (ej. 2000s)
+          const dif = Math.abs(anioCand - anioPromedioCluster);
+          if (dif <= 4) {
+            score += 35;
+            desgloses.push(`+35 pts 📅 (Misma época ~${anioCand})`);
+          } else if (dif <= 7) {
+            score += 15;
+            desgloses.push(`+15 pts 📅 (Época similar ~${anioCand})`);
+          }
+        } else if (aniosOrigen.length > 0) {
+          // Caso B: El usuario eligió películas de épocas distintas (ej. 1980 y 2010)
+          const coincideConAlguna = aniosOrigen.some(anioOrig => Math.abs(anioCand - anioOrig) <= 3);
+          if (coincideConAlguna) {
+            score += 20;
+            desgloses.push(`+20 pts 📅 (Coincide con época de una de las elegidas ~${anioCand})`);
+          }
+        }
+      }
+    }
+
+    // Coincidencia cruzada
     const rawData = mapaCandidatosBrutos.get(cand.id);
     if (rawData && rawData.frecuenciasAparicion > 1) {
       const bonusNet = rawData.frecuenciasAparicion * 10;
@@ -341,6 +400,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       desgloses.push(`+${bonusNet} pts (Coincidencia cruzada)`);
     }
 
+    // Géneros
     generosCand.forEach(genreId => {
       const freq = conteoGenerosOrigen[genreId] || 0;
       const nombreG = MAPA_GENEROS[genreId] || `ID ${genreId}`;
@@ -349,6 +409,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       else if (freq === 1) { score += 5; desgloses.push(`+5 pts (Género "${nombreG}" en 1 original)`); }
     });
 
+    // Keywords
     const kwCand = extraerKeywordsLimpias(cand.keywords);
     kwCand.forEach(kw => {
       if (keywordsOrigenLimpias.has(kw)) {
@@ -357,6 +418,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       }
     });
 
+    // Créditos
     if (cand.credits) {
       const directoresCand = (cand.credits.crew || []).filter(c => c.job === 'Director');
       const guionistasCand = (cand.credits.crew || []).filter(c => ['Writer', 'Screenplay'].includes(c.job));
@@ -373,11 +435,15 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
       });
     }
 
+    // Quality Bonus
     if (gemaOculta) {
       if (cand.vote_average >= 7.2) { score += 20; desgloses.push(`+20 pts (Nota Gema >= 7.2)`); }
       if (cand.vote_count >= 100 && cand.vote_count <= 1500) { score += 15; desgloses.push(`+15 pts (Perfil Culto)`); }
     } else {
-      if (cand.vote_average >= 7.0 && cand.vote_count >= 150) { score += 5; desgloses.push(`+5 pts (Nota >= 7.0)`); }
+      if (cand.vote_average >= 6.8 && cand.vote_count >= 150) {
+        score += 20;
+        desgloses.push(`+20 pts ⭐ (Buena calificación: ${cand.vote_average.toFixed(1)})`);
+      }
     }
 
     candidatosProcesados.push({
@@ -396,7 +462,7 @@ async function ejecutarCapa1FiltradoYScoring(peliculasOrigen, excludeIds, movieI
   console.log(`✅ Capa 1 completada: ${topFinal.length} candidatas seleccionadas para la IA.`);
   console.log(`🏆 TOP 5 CANDIDATAS CON MAYOR SCORE:`);
   topFinal.slice(0, 5).forEach((c, idx) => {
-    console.log(`\n ${idx + 1}. "${c.title}" [Cert: ${c.clasificacionEdad}] -> TOTAL: ${c.score} pts`);
+    console.log(`\n ${idx + 1}. "${c.title}" [${c.release_date ? c.release_date.split('-')[0] : 'N/D'}] -> TOTAL: ${c.score} pts`);
     c.desgloses.forEach(d => console.log(`         * ${d}`));
   });
   console.log(`====================================================\n`);
