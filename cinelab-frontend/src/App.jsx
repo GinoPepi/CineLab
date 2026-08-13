@@ -47,7 +47,35 @@ const EXPLICACIONES_FILTROS = {
   }
 };
 
-function DesgloseCard({ comp }) {
+// COMPONENTE DE FLECHA DE ESTILO ANALÓGICO PARA EL TUTORIAL
+function FilmArrow({ label = 'HAZ CLICK AQUÍ', direction = 'down' }) {
+  return (
+    <div className="flex flex-col items-center animate-bounce z-40 pointer-events-none my-1">
+      {direction === 'down' && (
+        <span className="font-mono text-[10px] font-bold text-halogen bg-obscura/95 border border-halogen px-2.5 py-1 rounded shadow-[0_0_12px_rgba(245,158,11,0.5)] tracking-widest uppercase mb-1 text-center">
+          {label}
+        </span>
+      )}
+      <svg
+        className={`w-7 h-7 text-halogen drop-shadow-[0_0_10px_rgba(245,158,11,0.9)] ${
+          direction === 'down' ? 'rotate-180' : ''
+        }`}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+      </svg>
+      {direction === 'up' && (
+        <span className="font-mono text-[10px] font-bold text-halogen bg-obscura/95 border border-halogen px-2.5 py-1 rounded shadow-[0_0_12px_rgba(245,158,11,0.5)] tracking-widest uppercase mt-1 text-center">
+          {label}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function DesgloseCard({ comp, highlightProps }) {
   const [expanded, setExpanded] = useState(false);
   const esLargo = comp.sinopsis && comp.sinopsis.length > 100;
 
@@ -70,25 +98,25 @@ function DesgloseCard({ comp }) {
         )}
 
         <div className="space-y-2">
-          <h4 className="font-display font-bold text-sm text-gray-100 leading-tight uppercase tracking-wide">
+          <h4 className="font-display font-bold text-sm sm:text-base text-gray-100 leading-tight uppercase tracking-wide">
             {comp.titulo}
           </h4>
 
           <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
             {comp.puntuacion && (
-              <span className="text-halogen bg-halogen/10 px-2 py-0.5 rounded border border-halogen/30 font-bold">
+              <span className={`text-halogen bg-halogen/10 px-2 py-0.5 rounded border border-halogen/30 font-bold transition-all ${highlightProps?.rating ? 'ring-2 ring-halogen animate-pulse bg-halogen/20' : ''}`}>
                 {comp.origenPuntuacion || 'IMDb'}: {comp.puntuacion.toFixed(1)}
               </span>
             )}
             {comp.clasificacionEdad && comp.clasificacionEdad !== 'N/D' && (
-              <span className="text-crimson bg-crimson/10 px-2 py-0.5 rounded border border-crimson/30 font-bold">
+              <span className={`text-crimson bg-crimson/10 px-2 py-0.5 rounded border border-crimson/30 font-bold transition-all ${highlightProps?.cert ? 'ring-2 ring-crimson animate-pulse bg-crimson/20' : ''}`}>
                 {comp.clasificacionEdad}
               </span>
             )}
           </div>
 
           {comp.keywords && comp.keywords.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1 font-mono text-[9px]">
+            <div className={`flex flex-wrap gap-1 pt-1 font-mono text-[9px] rounded p-1 transition-all ${highlightProps?.keywords ? 'ring-2 ring-halogen bg-halogen/10 animate-pulse' : ''}`}>
               {comp.keywords.slice(0, 3).map((kw, idx) => (
                 <span key={idx} className="bg-obscura text-gray-400 px-1.5 py-0.5 rounded border border-film truncate max-w-[110px]">
                   {kw}
@@ -97,7 +125,7 @@ function DesgloseCard({ comp }) {
             </div>
           )}
 
-          <p className={`font-sans text-xs text-gray-300 leading-relaxed pt-1 ${expanded ? '' : 'line-clamp-3'}`}>
+          <p className={`font-sans text-sm text-gray-200 leading-relaxed pt-1 transition-all rounded p-1 ${expanded ? '' : 'line-clamp-3'} ${highlightProps?.synopsis ? 'ring-2 ring-halogen bg-halogen/10 animate-pulse' : ''}`}>
             {comp.sinopsis || 'Sin descripción disponible.'}
           </p>
 
@@ -105,7 +133,7 @@ function DesgloseCard({ comp }) {
             <button
               type="button"
               onClick={() => setExpanded(!expanded)}
-              className="font-mono text-[10px] text-halogen hover:underline tracking-wider uppercase"
+              className="font-mono text-[10px] text-halogen hover:underline tracking-wider uppercase pt-1"
             >
               {expanded ? '▲ MOSTRAR MENOS' : '▼ LEER BÚSQUEDA COMPLETA'}
             </button>
@@ -131,15 +159,43 @@ export default function App() {
   const [excludedIds, setExcludedIds] = useState([]);
   const [grainEnabled, setGrainEnabled] = useState(true);
 
+  // ESTADOS DEL TUTORIAL INTERACTIVO
+  const [tutorialStep, setTutorialStep] = useState('WELCOME');
+  const [resultWalkthroughIndex, setResultWalkthroughIndex] = useState(0);
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [modalExplicacion, setModalExplicacion] = useState(null);
+  
   const modalInputRef = useRef(null);
+  const mesaCorteRef = useRef(null);
+  const runBtnRef = useRef(null);
+  const resultsRef = useRef(null);
+  const filtersRef = useRef(null);
+
+  // REFERENCIAS A ELEMENTOS DE RESULTADO PARA EL TUTORIAL
+  const ratingRef = useRef(null);
+  const certRef = useRef(null);
+  const keywordsRef = useRef(null);
+  const synopsisRef = useRef(null);
+  const iaDictamenRef = useRef(null);
+  const connectionsRef = useRef(null);
 
   useEffect(() => {
     if (isSearchOpen && modalInputRef.current) {
       modalInputRef.current.focus();
     }
   }, [isSearchOpen]);
+
+  // AUTO-SCROLL SUAVE A RESULTADOS CUANDO SE GENERA LA RESPUESTA
+  useEffect(() => {
+    if (result && resultsRef.current) {
+      resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (tutorialStep === 'READY_TO_RUN') {
+        setTutorialStep('WALKTHROUGH_RESULT');
+        setResultWalkthroughIndex(0);
+      }
+    }
+  }, [result]);
 
   useEffect(() => {
     if (searchQuery.trim().length < 2) {
@@ -179,28 +235,45 @@ export default function App() {
   const addMovie = (movie) => {
     const max = activeTab === 'descomposicion' ? 1 : 3;
 
+    let newSelected = [...selectedMovies];
     if (result || selectedMovies.length >= max) {
-      setSelectedMovies([movie]);
+      newSelected = [movie];
+      setSelectedMovies(newSelected);
       setResult(null);
       setError(null);
       setExcludedIds([]);
       setIsSearchOpen(false);
-      return;
+    } else {
+      if (selectedMovies.some((m) => m.id === movie.id)) return;
+      setError(null);
+      newSelected = [...selectedMovies, movie];
+      setSelectedMovies(newSelected);
+      setSearchQuery('');
+      setSearchResults([]);
+      setIsSearchOpen(false);
     }
 
-    if (selectedMovies.some((m) => m.id === movie.id)) return;
-
-    setError(null);
-    setSelectedMovies([...selectedMovies, movie]);
-    setSearchQuery('');
-    setSearchResults([]);
-    setIsSearchOpen(false);
+    // AVANCE DEL TUTORIAL AL AGREGAR PELÍCULA
+    if (tutorialStep === 'SELECT_SLOTS') {
+      if (newSelected.length === max) {
+        setTutorialStep('READY_TO_RUN');
+        setTimeout(() => {
+          if (runBtnRef.current) {
+            runBtnRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 300);
+      }
+    }
   };
 
   const removeMovie = (id) => {
-    setSelectedMovies(selectedMovies.filter((m) => m.id !== id));
+    const filtered = selectedMovies.filter((m) => m.id !== id);
+    setSelectedMovies(filtered);
     setResult(null);
     setExcludedIds([]);
+    if (tutorialStep === 'READY_TO_RUN') {
+      setTutorialStep('SELECT_SLOTS');
+    }
   };
 
   const runTool = async (isRetry = false) => {
@@ -247,6 +320,41 @@ export default function App() {
 
   const maxSlots = activeTab === 'descomposicion' ? 1 : 3;
 
+  // CONTROLADORES DE NAVEGACIÓN DEL TUTORIAL
+  const handleStartTutorial = () => {
+    setTutorialStep('EXPLAIN_MODE');
+  };
+
+  const handleSkipTutorial = () => {
+    setTutorialStep('OFF');
+  };
+
+  const handleContinueToSlots = () => {
+    setTutorialStep('SELECT_SLOTS');
+    setTimeout(() => {
+      if (mesaCorteRef.current) {
+        mesaCorteRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 200);
+  };
+
+  const handleNextWalkthroughStep = () => {
+    if (resultWalkthroughIndex < 5) {
+      setResultWalkthroughIndex(resultWalkthroughIndex + 1);
+    } else {
+      setTutorialStep('FINAL_MESSAGE');
+    }
+  };
+
+  const handleGoToFiltersTutorial = () => {
+    setTutorialStep('SHOW_FILTERS');
+    setTimeout(() => {
+      if (filtersRef.current) {
+        filtersRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 200);
+  };
+
   return (
     <div className="min-h-screen bg-obscura text-gray-100 font-sans p-3 sm:p-6 md:p-8 relative overflow-x-hidden">
       {grainEnabled && <div className="film-grain" />}
@@ -257,11 +365,17 @@ export default function App() {
         <Header activeTab={activeTab} onTabChange={cambiarTab} />
 
         {/* Sección de Selección de Películas */}
-        <div className="space-y-3">
+        <div ref={mesaCorteRef} className="space-y-3 scroll-mt-6">
           
           {/* BARRA DE PARÁMETROS DE PROYECCIÓN & FILTROS */}
-          <div className="bg-celluloid border border-film rounded-lg p-3 sm:p-4 space-y-3 font-mono shadow-lg">
-            
+          <div
+            ref={filtersRef}
+            className={`bg-celluloid border rounded-lg p-3 sm:p-4 space-y-3 font-mono shadow-lg transition-all duration-500 scroll-mt-6 ${
+              tutorialStep === 'SHOW_FILTERS'
+                ? 'border-halogen shadow-[0_0_35px_rgba(245,158,11,0.5)] ring-2 ring-halogen animate-pulse'
+                : 'border-film'
+            }`}
+          >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-film/60 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-halogen animate-pulse" />
@@ -271,7 +385,6 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-3 self-start sm:self-auto">
-                {/* Botón de control de Grano de Película */}
                 <button
                   type="button"
                   onClick={() => setGrainEnabled(!grainEnabled)}
@@ -298,8 +411,6 @@ export default function App() {
             </div>
 
             <div className="flex items-center justify-between gap-3 flex-wrap pt-0.5">
-              
-              {/* Selector de País */}
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 text-xs">REGION:</span>
                 <select
@@ -318,10 +429,7 @@ export default function App() {
                 </select>
               </div>
 
-              {/* Badges Conmutadores de Filtros */}
               <div className="flex items-center gap-2 flex-wrap">
-                
-                {/* Filtro: Cine Oculto (Solo Síntesis) */}
                 {activeTab === 'sintesis' && (
                   <label className={`
                     flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] cursor-pointer select-none transition-all
@@ -344,7 +452,6 @@ export default function App() {
                   </label>
                 )}
 
-                {/* Filtro: Sello de Autor */}
                 <label className={`
                   flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] cursor-pointer select-none transition-all
                   ${
@@ -365,7 +472,6 @@ export default function App() {
                   <span className="uppercase tracking-wider">SELLO DE AUTOR</span>
                 </label>
 
-                {/* Filtro: Foco Reparto */}
                 <label className={`
                   flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] cursor-pointer select-none transition-all
                   ${
@@ -385,23 +491,64 @@ export default function App() {
                   />
                   <span className="uppercase tracking-wider">FOCO REPARTO</span>
                 </label>
-
               </div>
             </div>
+
+            {/* CARTEL EXPLICATIVO SI EL TUTORIAL MUESTRA FILTROS */}
+            {tutorialStep === 'SHOW_FILTERS' && (
+              <div className="bg-obscura border border-halogen p-3 rounded text-left space-y-2 mt-3 animate-fade-in">
+                <FilmArrow direction="up" label="HAZ CLICK EN CADA UNO PARA VER CÓMO FUNCIONAN" />
+                <p className="font-sans text-xs text-gray-200 leading-relaxed">
+                  Podés calibrar la búsqueda por región o activar parámetros como <strong className="text-halogen">Cine Oculto</strong> (joyas no comerciales), <strong className="text-purple-300">Sello de Autor</strong> (coincidencia de equipo de dirección/guión) o <strong className="text-cyan-300">Foco Reparto</strong>.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTutorialStep('OFF')}
+                  className="w-full py-2 bg-halogen hover:bg-amber-500 text-obscura font-display font-bold text-xs uppercase tracking-widest rounded transition-all shadow-md mt-1"
+                >
+                  FINALIZAR TUTORIAL Y EXPLORAR
+                </button>
+              </div>
+            )}
           </div>
 
+          {/* GRID DE SLOTS DE PELÍCULA CON ILUMINACIÓN DEL TUTORIAL */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {Array.from({ length: maxSlots }).map((_, index) => {
               const movie = selectedMovies[index];
+              const isTargetSlot = tutorialStep === 'SELECT_SLOTS' && index === selectedMovies.length;
+
               return (
-                <MovieSlot
-                  key={movie?.id || index}
-                  slotNumber={index + 1}
-                  totalSlots={maxSlots}
-                  movie={movie}
-                  onSelect={() => setIsSearchOpen(true)}
-                  onRemove={() => movie && removeMovie(movie.id)}
-                />
+                <div key={movie?.id || index} className="relative flex flex-col items-center">
+                  {/* FLECHA Y CARTEL EN EL SLOT REQUERIDO DEL TUTORIAL */}
+                  {isTargetSlot && (
+                    <div className="w-full mb-2 z-30 flex flex-col items-center animate-fade-in">
+                      <FilmArrow direction="down" label="HAZ CLICK AQUÍ" />
+                      <div className="bg-celluloid border border-halogen p-2.5 rounded shadow-[0_0_20px_rgba(245,158,11,0.3)] text-center text-xs font-sans text-gray-100 max-w-xs">
+                        <span className="font-mono text-halogen font-bold uppercase tracking-wider block mb-1">
+                          {activeTab === 'sintesis'
+                            ? `SELECCIONA LA ${index === 0 ? 'PRIMERA' : index === 1 ? 'SEGUNDA' : 'TERCERA'} PELÍCULA`
+                            : 'SELECCIONA UNA PELÍCULA'}
+                        </span>
+                        {index === 0
+                          ? 'Cargá el primer fotograma para iniciar la muestra en el laboratorio.'
+                          : index === 1
+                          ? 'Agregá la segunda obra para comenzar a cruzar tono y estética.'
+                          : 'Última película para completar la mezcla de síntesis.'}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`w-full rounded-md transition-all duration-500 ${isTargetSlot ? 'ring-4 ring-halogen shadow-[0_0_35px_rgba(245,158,11,0.6)] animate-pulse' : ''}`}>
+                    <MovieSlot
+                      slotNumber={index + 1}
+                      totalSlots={maxSlots}
+                      movie={movie}
+                      onSelect={() => setIsSearchOpen(true)}
+                      onRemove={() => movie && removeMovie(movie.id)}
+                    />
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -409,30 +556,47 @@ export default function App() {
 
         {/* Botón de Ejecución Principal */}
         {selectedMovies.length === maxSlots && (
-          <button
-            type="button"
-            onClick={() => runTool(false)}
-            disabled={loading}
-            className="group relative w-full py-4 px-6 rounded-md font-display font-bold text-sm sm:text-base uppercase tracking-widest text-white bg-crimson transition-all duration-300 shadow-[0_0_20px_rgba(229,9,20,0.35)] hover:shadow-[0_0_35px_rgba(229,9,20,0.65)] hover:bg-[#f00a16] disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden select-none border border-red-500/30 my-4"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none" />
-
-            {loading ? (
-              <div className="flex items-center justify-center gap-3 font-mono text-xs sm:text-sm tracking-wider text-amber-200">
-                <span className="w-2.5 h-2.5 rounded-full bg-halogen animate-ping" />
-                <span>PROYECTANDO ANÁLISIS EN MESA...</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <span>
-                  {activeTab === 'sintesis' ? 'INICIAR SÍNTESIS CINEMÁTICA' : 'EJECUTAR DESCOMPOSICIÓN DE ADN'}
-                </span>
-                <span className="font-mono text-xs text-amber-200/90 tracking-widest ml-1">
-                  [{activeTab === 'sintesis' ? '3→1' : '1→3'}]
-                </span>
+          <div ref={runBtnRef} className="space-y-3 scroll-mt-6">
+            {/* CARTEL DEL TUTORIAL PASO PREVIO A EJECUTAR */}
+            {tutorialStep === 'READY_TO_RUN' && (
+              <div className="bg-celluloid border border-crimson p-4 rounded-md text-center space-y-2 shadow-[0_0_25px_rgba(229,9,20,0.4)] animate-fade-in">
+                <FilmArrow direction="down" label="HAZ CLICK PARA VER EL RESULTADO" />
+                <h4 className="font-display font-bold text-sm text-gray-100 uppercase tracking-widest">
+                  MUY BIEN, YA SOLO QUEDA UN PASO
+                </h4>
+                <p className="font-sans text-xs text-gray-300 max-w-md mx-auto leading-relaxed">
+                  Presioná el botón de ejecución abajo para que el motor analice la mesa de corte y proyecte el resultado.
+                </p>
               </div>
             )}
-          </button>
+
+            <button
+              type="button"
+              onClick={() => runTool(false)}
+              disabled={loading}
+              className={`group relative w-full py-4 px-6 rounded-md font-display font-bold text-sm sm:text-base uppercase tracking-widest text-white bg-crimson transition-all duration-300 shadow-[0_0_20px_rgba(229,9,20,0.35)] hover:shadow-[0_0_35px_rgba(229,9,20,0.65)] hover:bg-[#f00a16] disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden select-none border border-red-500/30 my-4 ${
+                tutorialStep === 'READY_TO_RUN' ? 'ring-4 ring-halogen shadow-[0_0_40px_rgba(245,158,11,0.8)] animate-pulse' : ''
+              }`}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none" />
+
+              {loading ? (
+                <div className="flex items-center justify-center gap-3 font-mono text-xs sm:text-sm tracking-wider text-amber-200">
+                  <span className="w-2.5 h-2.5 rounded-full bg-halogen animate-ping" />
+                  <span>PROYECTANDO ANÁLISIS EN MESA...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <span>
+                    {activeTab === 'sintesis' ? 'INICIAR SÍNTESIS CINEMÁTICA' : 'EJECUTAR DESCOMPOSICIÓN DE ADN'}
+                  </span>
+                  <span className="font-mono text-xs text-amber-200/90 tracking-widest ml-1">
+                    [{activeTab === 'sintesis' ? '3→1' : '1→3'}]
+                  </span>
+                </div>
+              )}
+            </button>
+          </div>
         )}
 
         {error && (
@@ -441,14 +605,93 @@ export default function App() {
           </div>
         )}
 
-        {/* PANEL UNIFICADO DE RESULTADOS */}
+        {/* PANEL UNIFICADO DE RESULTADOS CON AUTO-SCROLL */}
         {result && (
-          <div className="bg-celluloid border border-film rounded-lg p-4 sm:p-6 space-y-6 shadow-2xl my-6">
+          <div ref={resultsRef} className="bg-celluloid border border-film rounded-lg p-4 sm:p-6 space-y-6 shadow-2xl my-6 scroll-mt-6 relative">
             
+            {/* OVERLAY EXPLICATIVO RECORRIDO GUIADO DE RESULTADOS */}
+            {tutorialStep === 'WALKTHROUGH_RESULT' && (
+              <div
+                onClick={handleNextWalkthroughStep}
+                className="bg-obscura/95 border-2 border-halogen rounded-md p-4 space-y-3 shadow-[0_0_40px_rgba(245,158,11,0.4)] cursor-pointer text-left animate-fade-in z-30"
+              >
+                <div className="flex items-center justify-between border-b border-film pb-2">
+                  <span className="font-mono text-[10px] text-halogen font-bold uppercase tracking-widest">
+                    EXPLICACIÓN DE RESULTADO [{resultWalkthroughIndex + 1}/6]
+                  </span>
+                  <span className="font-mono text-[10px] text-gray-400">CLICK PARA CONTINUAR ▶</span>
+                </div>
+
+                {resultWalkthroughIndex === 0 && (
+                  <div className="space-y-1">
+                    <p className="font-display font-bold text-sm text-gray-100 uppercase">1. PUNTUACIÓN DE LA CRÍTICA</p>
+                    <p className="font-sans text-xs text-gray-300 leading-relaxed">
+                      El recuadro amarillo destaca la puntuación promedio obtenida en bases de datos especializadas como IMDb o TMDB.
+                    </p>
+                  </div>
+                )}
+
+                {resultWalkthroughIndex === 1 && (
+                  <div className="space-y-1">
+                    <p className="font-display font-bold text-sm text-gray-100 uppercase">2. CLASIFICACIÓN DE EDAD</p>
+                    <p className="font-sans text-xs text-gray-300 leading-relaxed">
+                      Muestra el rango de edad o la restricción de contenido sugerida para la visualización de la obra.
+                    </p>
+                  </div>
+                )}
+
+                {resultWalkthroughIndex === 2 && (
+                  <div className="space-y-1">
+                    <p className="font-display font-bold text-sm text-gray-100 uppercase">3. ETIQUETAS CLAVE (KEYWORDS)</p>
+                    <p className="font-sans text-xs text-gray-300 leading-relaxed">
+                      Conceptos temáticos y narrativos principales identificados en la película.
+                    </p>
+                  </div>
+                )}
+
+                {resultWalkthroughIndex === 3 && (
+                  <div className="space-y-1">
+                    <p className="font-display font-bold text-sm text-gray-100 uppercase">4. SINOPSIS</p>
+                    <p className="font-sans text-xs text-gray-300 leading-relaxed">
+                      Resumen argumental para ponerte en contexto sobre la trama principal.
+                    </p>
+                  </div>
+                )}
+
+                {resultWalkthroughIndex === 4 && (
+                  <div className="space-y-1">
+                    <p className="font-display font-bold text-sm text-gray-100 uppercase">5. BITÁCORA / SÍNTESIS DE LA IA</p>
+                    <p className="font-sans text-xs text-gray-300 leading-relaxed">
+                      Argumento analítico redactado por Llama 3.1 explicando exactamente la conexión estética y temática con tus selecciones.
+                    </p>
+                  </div>
+                )}
+
+                {resultWalkthroughIndex === 5 && (
+                  <div className="space-y-1">
+                    <p className="font-display font-bold text-sm text-gray-100 uppercase">6. RED DE CONEXIONES DEL EQUIPO</p>
+                    <p className="font-sans text-xs text-gray-300 leading-relaxed">
+                      Mapea los nombres de directores, guionistas, directores de fotografía y actores compartidos entre las películas.
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNextWalkthroughStep();
+                  }}
+                  className="w-full py-2 bg-halogen hover:bg-amber-500 text-obscura font-display font-bold text-xs uppercase tracking-widest rounded transition-all shadow-md mt-1"
+                >
+                  {resultWalkthroughIndex < 5 ? 'ENTENDIDO // VER SIGUIENTE DETALLE' : 'FINALIZAR RECORRIDO DE RESULTADOS'}
+                </button>
+              </div>
+            )}
+
             {/* VISTA 1: SÍNTESIS RESULTANTE */}
             {result.type === 'caldero' && (
               <div className="space-y-5">
-                
                 <div className="flex items-center justify-between flex-wrap gap-3 border-b border-film pb-3">
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap font-mono text-[10px] sm:text-xs">
                     <span className="px-2.5 py-1 bg-crimson/15 border border-crimson/40 text-crimson rounded font-bold uppercase tracking-wider">
@@ -504,18 +747,40 @@ export default function App() {
                     </h3>
                     
                     <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-                      <span className="text-halogen bg-halogen/10 px-2.5 py-1 rounded border border-halogen/30 font-bold">
+                      <span
+                        ref={ratingRef}
+                        className={`text-halogen bg-halogen/10 px-2.5 py-1 rounded border border-halogen/30 font-bold transition-all ${
+                          tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 0
+                            ? 'ring-4 ring-halogen bg-halogen/30 animate-pulse'
+                            : ''
+                        }`}
+                      >
                         {result.data.resultado.origenPuntuacion || 'IMDb'}: {result.data.resultado.puntuacion?.toFixed(1)} / 10
                       </span>
+
                       {result.data.resultado.clasificacionEdad && result.data.resultado.clasificacionEdad !== 'N/D' && (
-                        <span className="text-crimson bg-crimson/10 px-2.5 py-1 rounded border border-crimson/30 font-bold">
+                        <span
+                          ref={certRef}
+                          className={`text-crimson bg-crimson/10 px-2.5 py-1 rounded border border-crimson/30 font-bold transition-all ${
+                            tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 1
+                              ? 'ring-4 ring-crimson bg-crimson/30 animate-pulse'
+                              : ''
+                          }`}
+                        >
                           CLASIFICACIÓN: {result.data.resultado.clasificacionEdad}
                         </span>
                       )}
                     </div>
 
                     {result.data.resultado.keywords && result.data.resultado.keywords.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 font-mono text-[10px]">
+                      <div
+                        ref={keywordsRef}
+                        className={`flex flex-wrap gap-1.5 font-mono text-[10px] rounded p-1 transition-all ${
+                          tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 2
+                            ? 'ring-2 ring-halogen bg-halogen/20 animate-pulse'
+                            : ''
+                        }`}
+                      >
                         {result.data.resultado.keywords.map((kw, idx) => (
                           <span key={idx} className="bg-obscura text-gray-400 px-2 py-0.5 rounded border border-film truncate max-w-[140px]">
                             {kw}
@@ -524,18 +789,32 @@ export default function App() {
                       </div>
                     )}
 
-                    <p className="font-sans text-gray-300 text-xs sm:text-sm leading-relaxed">
+                    <p
+                      ref={synopsisRef}
+                      className={`font-sans text-sm sm:text-base text-gray-200 leading-relaxed rounded p-1 transition-all ${
+                        tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 3
+                          ? 'ring-2 ring-halogen bg-halogen/20 animate-pulse'
+                          : ''
+                      }`}
+                    >
                       {result.data.resultado.sinopsis || 'Sin descripción disponible.'}
                     </p>
                   </div>
                 </div>
 
                 {result.data.argumentoIA && (
-                  <div className="bg-obscura/80 border-l-4 border-l-crimson border-y border-r border-film p-4 rounded-r-md space-y-1.5 shadow-md mt-4">
+                  <div
+                    ref={iaDictamenRef}
+                    className={`bg-obscura/80 border-l-4 border-l-crimson border-y border-r border-film p-4 rounded-r-md space-y-1.5 shadow-md mt-4 transition-all ${
+                      tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 4
+                        ? 'ring-4 ring-halogen bg-halogen/10 animate-pulse'
+                        : ''
+                    }`}
+                  >
                     <p className="font-mono text-[10px] uppercase tracking-widest text-halogen font-bold">
                       BITÁCORA DE SÍNTESIS (LLAMA 3.1)
                     </p>
-                    <p className="font-sans text-xs sm:text-sm text-gray-200 leading-relaxed italic">
+                    <p className="font-sans text-sm sm:text-base text-gray-100 leading-relaxed italic">
                       "{result.data.argumentoIA}"
                     </p>
                   </div>
@@ -546,7 +825,6 @@ export default function App() {
             {/* VISTA 2: DESCOMPOSICIÓN TEMÁTICA (ADN) */}
             {result.type === 'adn' && (
               <div className="space-y-5">
-                
                 <div className="flex items-center justify-between flex-wrap gap-3 border-b border-film pb-3">
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap font-mono text-[10px] sm:text-xs">
                     <span className="px-2.5 py-1 bg-purple-500/15 border border-purple-500/40 text-purple-300 rounded font-bold uppercase tracking-wider">
@@ -580,11 +858,18 @@ export default function App() {
                 </div>
 
                 {result.data.argumentoADN && (
-                  <div className="bg-obscura/80 border-l-4 border-l-halogen border-y border-r border-film p-4 rounded-r-md space-y-1.5 shadow-md">
+                  <div
+                    ref={iaDictamenRef}
+                    className={`bg-obscura/80 border-l-4 border-l-halogen border-y border-r border-film p-4 rounded-r-md space-y-1.5 shadow-md transition-all ${
+                      tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 4
+                        ? 'ring-4 ring-halogen bg-halogen/10 animate-pulse'
+                        : ''
+                    }`}
+                  >
                     <p className="font-mono text-[10px] uppercase tracking-widest text-halogen font-bold">
                       BITÁCORA DE DESCOMPOSICIÓN TEMÁTICA
                     </p>
-                    <p className="font-sans text-xs sm:text-sm text-gray-200 leading-relaxed italic">
+                    <p className="font-sans text-sm sm:text-base text-gray-100 leading-relaxed italic">
                       "{result.data.argumentoADN}"
                     </p>
                   </div>
@@ -592,14 +877,30 @@ export default function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
                   {result.data.adn.map((comp) => (
-                    <DesgloseCard key={comp.id} comp={comp} />
+                    <DesgloseCard
+                      key={comp.id}
+                      comp={comp}
+                      highlightProps={{
+                        rating: tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 0,
+                        cert: tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 1,
+                        keywords: tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 2,
+                        synopsis: tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 3,
+                      }}
+                    />
                   ))}
                 </div>
               </div>
             )}
 
             {/* RED DE CONEXIONES DEL EQUIPO */}
-            <div className="border-t border-film pt-5 space-y-4">
+            <div
+              ref={connectionsRef}
+              className={`border-t border-film pt-5 space-y-4 rounded p-2 transition-all ${
+                tutorialStep === 'WALKTHROUGH_RESULT' && resultWalkthroughIndex === 5
+                  ? 'ring-4 ring-halogen bg-halogen/10 animate-pulse'
+                  : ''
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <h4 className="font-display font-bold text-sm tracking-widest uppercase text-gray-200">
                   RED DE CONEXIONES DEL EQUIPO
@@ -610,7 +911,7 @@ export default function App() {
               </div>
 
               {!result.data.conexiones || result.data.conexiones.length === 0 ? (
-                <p className="font-sans text-xs text-gray-500 italic">
+                <p className="font-sans text-xs sm:text-sm text-gray-400 italic">
                   No se registraron integrantes del equipo técnico o reparto con coincidencia directa en estas películas.
                 </p>
               ) : (
@@ -640,7 +941,7 @@ export default function App() {
                         <div className="space-y-1.5">
                           {persona.peliculas.map((p, idx) => (
                             <div key={idx} className="space-y-1">
-                              <span className="font-sans text-gray-300 text-xs font-medium block truncate">
+                              <span className="font-sans text-gray-200 text-xs sm:text-sm font-medium block truncate">
                                 {p.tituloPelicula}
                               </span>
                               <div className="flex flex-wrap gap-1">
@@ -670,6 +971,116 @@ export default function App() {
         )}
 
       </div>
+
+      {/* MODAL 1: BIENVENIDA A CINELAB */}
+      {tutorialStep === 'WELCOME' && (
+        <div className="fixed inset-0 z-50 bg-obscura/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-celluloid border border-film max-w-md w-full rounded-lg p-6 space-y-5 shadow-[0_0_50px_rgba(0,0,0,0.9)] text-center relative overflow-hidden">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-obscura border border-film text-[10px] font-mono tracking-widest text-halogen uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-halogen animate-pulse" />
+              WELCOME TO CINELAB
+            </div>
+
+            <h3 className="font-display font-bold text-xl text-gray-100 uppercase tracking-wide">
+              BIENVENIDO A CINELAB
+            </h3>
+
+            <p className="font-sans text-sm text-gray-300 leading-relaxed bg-obscura/60 border border-film/60 p-4 rounded text-left">
+              CineLab es un laboratorio cinemático diseñado para analizar, sintetizar y descomponer obras cinematográficas según su tono, atmósfera y ejes temáticos profundos.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleSkipTutorial}
+                className="py-3 bg-obscura hover:bg-film border border-film text-gray-300 font-mono font-bold text-xs uppercase tracking-wider rounded transition-all"
+              >
+                YA SÉ CÓMO FUNCIONA
+              </button>
+              <button
+                type="button"
+                onClick={handleStartTutorial}
+                className="py-3 bg-crimson hover:bg-[#f00a16] text-white font-display font-bold text-xs uppercase tracking-widest rounded transition-all shadow-[0_0_15px_rgba(229,9,20,0.4)]"
+              >
+                EXPLÍCAME CÓMO FUNCIONA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: EXPLICACIÓN DE FUNCIÓN ACTIVA */}
+      {tutorialStep === 'EXPLAIN_MODE' && (
+        <div className="fixed inset-0 z-50 bg-obscura/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-celluloid border border-film max-w-md w-full rounded-lg p-6 space-y-5 shadow-[0_0_50px_rgba(0,0,0,0.9)] text-center relative overflow-hidden">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-obscura border border-film text-[10px] font-mono tracking-widest text-halogen uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-halogen animate-pulse" />
+              MODO ACTIVO: {activeTab === 'sintesis' ? 'SÍNTESIS (3→1)' : 'DESCOMPOSICIÓN (1→3)'}
+            </div>
+
+            <h3 className="font-display font-bold text-lg text-gray-100 uppercase tracking-wide">
+              {activeTab === 'sintesis' ? 'CÓMO FUNCIONA LA SÍNTESIS' : 'CÓMO FUNCIONA LA DESCOMPOSICIÓN'}
+            </h3>
+
+            <p className="font-sans text-sm text-gray-300 leading-relaxed bg-obscura/60 border border-film/60 p-4 rounded text-left">
+              {activeTab === 'sintesis' ? (
+                <>
+                  Seleccionás <strong className="text-white">3 películas</strong>. Nuestro motor analiza su estilo, dirección y ambientación para descubrir la <strong className="text-halogen">obra cinemática que conecta las 3</strong>.
+                </>
+              ) : (
+                <>
+                  Seleccionás <strong className="text-white">1 película</strong>. El laboratorio desglosa su ADN temático y encuentra <strong className="text-halogen">3 obras afines que exploran esos conceptos a mayor profundidad</strong>.
+                </>
+              )}
+            </p>
+
+            <button
+              type="button"
+              onClick={handleContinueToSlots}
+              className="w-full py-3 bg-crimson hover:bg-[#f00a16] text-white font-display font-bold text-xs uppercase tracking-widest rounded transition-all shadow-[0_0_15px_rgba(229,9,20,0.4)]"
+            >
+              IR A LA MESA DE CORTE // CONTINUAR
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL FINAL DE RESULTADOS CON BOTÓN DE FILTROS */}
+      {tutorialStep === 'FINAL_MESSAGE' && (
+        <div className="fixed inset-0 z-50 bg-obscura/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-celluloid border border-film max-w-md w-full rounded-lg p-6 space-y-5 shadow-[0_0_50px_rgba(0,0,0,0.9)] text-center relative overflow-hidden">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-obscura border border-film text-[10px] font-mono tracking-widest text-halogen uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-halogen animate-pulse" />
+              LABORATORY READY
+            </div>
+
+            <h3 className="font-display font-bold text-lg text-gray-100 uppercase tracking-wide">
+              ¡EXCELENTE! YA APRENDISTE LO BÁSICO
+            </h3>
+
+            <p className="font-sans text-sm text-gray-300 leading-relaxed bg-obscura/60 border border-film/60 p-4 rounded text-left">
+              Bien, ya sabes cómo funciona. Ahora disfruta descubriendo nuevas películas, experimentando con combinaciones únicas y explorando el ADN profundo del cine.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setTutorialStep('OFF')}
+                className="py-3 bg-obscura hover:bg-film border border-film text-gray-300 font-mono font-bold text-xs uppercase tracking-wider rounded transition-all"
+              >
+                CERRAR Y NAVEGAR
+              </button>
+              <button
+                type="button"
+                onClick={handleGoToFiltersTutorial}
+                className="py-3 bg-halogen hover:bg-amber-500 text-obscura font-display font-bold text-xs uppercase tracking-widest rounded transition-all shadow-[0_0_15px_rgba(245,158,11,0.4)]"
+              >
+                VER FILTROS AVANZADOS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Búsqueda */}
       {isSearchOpen && (
@@ -757,11 +1168,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal Explicativo */}
+      {/* Modal Explicativo de Filtros */}
       {modalExplicacion && (
         <div className="fixed inset-0 z-50 bg-obscura/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-celluloid border border-film max-w-md w-full rounded-lg p-6 space-y-5 shadow-[0_0_50px_rgba(0,0,0,0.9)] text-center relative overflow-hidden">
-            
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-obscura border border-film text-[10px] font-mono tracking-widest text-halogen uppercase">
               <span className="w-1.5 h-1.5 rounded-full bg-halogen animate-pulse" />
               TECHNICAL NOTE // PARAMETER INFO
@@ -771,7 +1181,7 @@ export default function App() {
               {modalExplicacion.titulo}
             </h3>
 
-            <p className="font-sans text-xs text-gray-300 leading-relaxed bg-obscura/60 border border-film/60 p-3.5 rounded text-left">
+            <p className="font-sans text-sm sm:text-base text-gray-200 leading-relaxed bg-obscura/60 border border-film/60 p-3.5 rounded text-left">
               {modalExplicacion.descripcion}
             </p>
 
@@ -782,7 +1192,6 @@ export default function App() {
             >
               COMPRENDIDO // CONTINUAR
             </button>
-
           </div>
         </div>
       )}

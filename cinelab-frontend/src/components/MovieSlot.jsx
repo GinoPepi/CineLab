@@ -35,7 +35,7 @@ export default function MovieSlot({ slotNumber, totalSlots = 3, movie, onSelect,
       <div className="relative flex-1 flex flex-col items-center justify-center p-3 overflow-hidden bg-gradient-to-b from-obscura/40 via-transparent to-obscura/80">
         {/* Cabecera del Fotograma: Código Técnico Dinámico */}
         <div className="absolute top-2 left-3 right-3 flex justify-between items-center z-20 font-mono text-[10px] tracking-wider text-gray-400 pointer-events-none">
-          <span>KODAK 35MM</span>
+          <span></span>
           <span className="text-halogen font-bold">
             [{String(slotNumber).padStart(2, '0')}/{String(totalSlots).padStart(2, '0')}]
           </span>
