@@ -910,8 +910,8 @@ export default function App() {
             {tutorialStep && ['SLOT_0', 'SLOT_1', 'SLOT_2'].includes(tutorialStep) && (
               <div className="bg-halogen/10 border-2 border-halogen text-halogen p-3 rounded font-mono text-xs font-bold text-center tracking-wider uppercase">
                 {activeTab === 'sintesis'
-                  ? `SELECCIONA LA ${tutorialStep === 'SLOT_0' ? 'PRIMERA' : tutorialStep === 'SLOT_1' ? 'SEGUNDA' : 'TERCERA'} PELÍCULA DEL CATÁLOGO`
-                  : 'SELECCIONA UNA PELÍCULA PARA INICIAR EL DESGLOSE'}
+                  ? `ESCRIBE EL NOMBRE DE LA ${tutorialStep === 'SLOT_0' ? 'PRIMERA' : tutorialStep === 'SLOT_1' ? 'SEGUNDA' : 'TERCERA'} PELÍCULA DEL CATÁLOGO`
+                  : 'ESCRIBE EL NOMBRE DE UNA PELÍCULA PARA INICIAR EL DESGLOSE'}
               </div>
             )}
 
